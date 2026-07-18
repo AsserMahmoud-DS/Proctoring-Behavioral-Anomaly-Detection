@@ -75,9 +75,3 @@ uv run pytest
 - Python 3.12, uv, FastAPI, scikit-learn, pandas, numpy
 - Jupytext for notebook sync (`.py` → `.ipynb`)
 
-## Key Design Decisions
-
-- **Event-count chunking** over time-based windows (5 events per chunk by default)
-- **`dt = 0` rows** produce `inf` in derivative columns, replaced with `NaN` before aggregation — invalid measurements are excluded rather than injected with artificial near-zero values
-- **`Is Cheating`** label parsed via string comparison (`== "TRUE"`) rather than `.astype(bool)` to avoid treating the string `"FALSE"` as truthy
-- **Angular velocity** uses wrapped differences `((diff + π) % 2π) − π` to prevent +2π spikes at the ±π boundary
