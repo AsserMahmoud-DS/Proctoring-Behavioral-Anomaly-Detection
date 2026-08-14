@@ -8,7 +8,7 @@ _project_root = _find_project_root()
 NORMAL_DIR = _project_root / "data/raw/pure normal"
 MIXED_DIR = _project_root / "data/raw/mixed"
 PROCESSED_DIR = _project_root / "data/processed"
-MODELS_DIR = _project_root / "models"
+MODELS_DIR = _project_root / "best_models"
 REPORTS_DIR = _project_root / "reports"
 
 # Processed data paths (per-split)
