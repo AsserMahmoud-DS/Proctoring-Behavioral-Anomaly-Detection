@@ -10,6 +10,7 @@ Public API:
       ``extract_action_features`` — domain-specific extractors.
     - ``merge_window_switch_events`` — merge blur/focus/tab-switch columns.
     - ``Log1pSkewed`` — sklearn transformer for log1p on skewed features.
+    - ``find_skewed_features`` — identify columns eligible for log1p.
     - ``add_coordinate_noise``, ``augment_session_data`` —
       Gaussian-noise data augmentation for normal sessions.
     - ``select_features`` — zero-variance + correlation-based feature selection.
@@ -26,7 +27,7 @@ from .features import (
     extract_action_features,
 )
 from .build import merge_window_switch_events
-from .transform import Log1pSkewed
+from .transform import Log1pSkewed, find_skewed_features
 from .augment import add_coordinate_noise, augment_session_data
 from .selection import select_features
 
@@ -44,6 +45,7 @@ __all__ = [
     "extract_action_features",
     "merge_window_switch_events",
     "Log1pSkewed",
+    "find_skewed_features",
     "add_coordinate_noise",
     "augment_session_data",
     "select_features",
