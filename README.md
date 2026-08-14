@@ -1,4 +1,4 @@
-# CheatDetect
+# Proctoring Behavioral Anomaly Detection
 
 Behavioral anomaly detection through mouse and keyboard actions collected from students during live exam sessions.
 
