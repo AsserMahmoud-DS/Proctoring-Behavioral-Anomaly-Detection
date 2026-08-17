@@ -17,6 +17,8 @@ VAL_NORMAL_PATH = PROCESSED_DIR / "val_normal.pkl"
 VAL_MIXED_PATH = PROCESSED_DIR / "val_mixed.pkl"
 TEST_MIXED_PATH = PROCESSED_DIR / "test_mixed.pkl"
 SPLIT_INFO_PATH = PROCESSED_DIR / "split_info.json"
+TRAIN_AUGMENTED_PATH = PROCESSED_DIR / "train_augmented.pkl"
+FEATURE_LISTS_PATH = PROCESSED_DIR / "feature_lists.json"
 
 # Reports directories
 EDA_DIR = REPORTS_DIR / "eda"
