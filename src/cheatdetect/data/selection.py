@@ -75,6 +75,25 @@ def _pick_tier1_drop(feat1: str, feat2: str) -> str:
     return feat2
 
 
+def _tier1_drops(X_no_zero: pd.DataFrame, threshold: float) -> set[str]:
+    """Return features dropped due to Tier-1 correlation redundancy."""
+    pairs = find_correlated_pairs(X_no_zero, threshold=threshold)
+    drops: set[str] = set()
+    for feat1, feat2, _ in pairs:
+        if classify_correlation_pair(feat1, feat2) == "Tier 1 (drop)":
+            drops.add(_pick_tier1_drop(feat1, feat2))
+    return drops
+
+
+def _drop_zero_var(X: pd.DataFrame) -> tuple[pd.DataFrame, set[str]]:
+    """Return ``(X without zero-variance columns, zero-variance column set)``."""
+    zero_var_drops = set(detect_zero_variance(X))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        X_no_zero = X.drop(columns=zero_var_drops, errors="ignore")
+    return X_no_zero, zero_var_drops
+
+
 def select_features(
     X: pd.DataFrame, corr_threshold: float = 0.85
 ) -> tuple[list[str], list[str]]:
@@ -91,26 +110,40 @@ def select_features(
     Returns:
         ``(features_to_keep, features_to_drop)`` — both sorted lists.
     """
-    # ---- 1. zero-variance features -------------------------------------------
-    zero_var_drops = detect_zero_variance(X)
+    X_no_zero, zero_var_drops = _drop_zero_var(X)
+    tier1_drops = _tier1_drops(X_no_zero, corr_threshold)
 
-    # ---- 2. highly correlated pairs (on non-zero-variance features) ----------
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        # RuntimeWarning can fire if zero-variance columns still exist
-        # in the subset — safe to ignore, they are already marked for removal.
-        X_no_zero = X.drop(columns=zero_var_drops, errors="ignore")
-    pairs = find_correlated_pairs(X_no_zero, threshold=corr_threshold)
-
-    # ---- 3. Tier-1 drops -----------------------------------------------------
-    tier1_drops: set[str] = set()
-    for feat1, feat2, _ in pairs:
-        if classify_correlation_pair(feat1, feat2) == "Tier 1 (drop)":
-            tier1_drops.add(_pick_tier1_drop(feat1, feat2))
-
-    # ---- 4. combine and return -----------------------------------------------
-    all_drops = set(zero_var_drops) | tier1_drops
+    all_drops = zero_var_drops | tier1_drops
     features_to_keep = [f for f in X.columns if f not in all_drops]
     features_to_drop = sorted(all_drops)
 
     return features_to_keep, features_to_drop
+
+
+def feature_summary(X: pd.DataFrame, corr_threshold: float = 0.85) -> pd.DataFrame:
+    """Summarize the keep/drop decision and its reason for every feature.
+
+    Args:
+        X: Training feature matrix.
+        corr_threshold: Minimum absolute Pearson correlation for the
+            redundancy check.
+
+    Returns:
+        DataFrame indexed by feature name with columns ``variance``,
+        ``zero_variance``, ``tier1_redundant``, and ``decision``
+        (``"KEEP"`` or ``"DROP"``).
+    """
+    X_no_zero, zero_var_drops = _drop_zero_var(X)
+    tier1_drops = _tier1_drops(X_no_zero, corr_threshold)
+    all_drops = zero_var_drops | tier1_drops
+
+    features = list(X.columns)
+    return pd.DataFrame(
+        {
+            "feature": features,
+            "variance": X.var().values,
+            "zero_variance": [f in zero_var_drops for f in features],
+            "tier1_redundant": [f in tier1_drops for f in features],
+            "decision": ["DROP" if f in all_drops else "KEEP" for f in features],
+        }
+    )

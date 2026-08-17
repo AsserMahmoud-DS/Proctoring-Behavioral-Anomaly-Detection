@@ -14,6 +14,9 @@ Public API:
     - ``add_coordinate_noise``, ``augment_session_data`` —
       Gaussian-noise data augmentation for normal sessions.
     - ``select_features`` — zero-variance + correlation-based feature selection.
+    - ``feature_summary`` — keep/drop decision table for EDA.
+    - ``detect_zero_variance``, ``find_correlated_pairs``,
+      ``classify_correlation_pair`` — selection building blocks.
 """
 
 from .loader import load_single_session, load_sessions
@@ -29,7 +32,13 @@ from .features import (
 from .build import merge_window_switch_events
 from .transform import Log1pSkewed, find_skewed_features
 from .augment import add_coordinate_noise, augment_session_data
-from .selection import select_features
+from .selection import (
+    classify_correlation_pair,
+    detect_zero_variance,
+    feature_summary,
+    find_correlated_pairs,
+    select_features,
+)
 
 __all__ = [
     "load_single_session",
@@ -49,4 +58,8 @@ __all__ = [
     "add_coordinate_noise",
     "augment_session_data",
     "select_features",
+    "feature_summary",
+    "detect_zero_variance",
+    "find_correlated_pairs",
+    "classify_correlation_pair",
 ]
