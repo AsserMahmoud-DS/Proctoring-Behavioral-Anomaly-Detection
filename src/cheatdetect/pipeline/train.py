@@ -370,4 +370,5 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         "skewed_features": skewed_features,
         "val_scores": val_scores,
         "y_val": y_val,
+        "y_test": y_test,
     }
