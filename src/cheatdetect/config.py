@@ -5,9 +5,9 @@ from cheatdetect.utils import _find_project_root
 _project_root = _find_project_root()
 
 # Environment / deployment constants
-NORMAL_DIR = _project_root / "data/raw/pure normal"
-MIXED_DIR = _project_root / "data/raw/mixed"
-PROCESSED_DIR = _project_root / "data/processed"
+NORMAL_DIR = _project_root / "dataset/raw/pure normal"
+MIXED_DIR = _project_root / "dataset/raw/mixed"
+PROCESSED_DIR = _project_root / "dataset/processed"
 MODELS_DIR = _project_root / "best_models"
 REPORTS_DIR = _project_root / "reports"
 
