@@ -298,7 +298,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     # ---- Modeling ---------------------------------------------------------
     skewed_features = find_skewed_features(X_train, skew_threshold=config.skew_threshold)
 
-    best_if, _ = IsolationForestDetector.grid_search(
+    best_if, if_results = IsolationForestDetector.grid_search(
         X_train,
         X_val,
         y_val,
@@ -311,7 +311,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         random_state=config.random_state,
     )
 
-    best_ocsvm, _ = OCSVMDetector.grid_search(
+    best_ocsvm, ocsvm_results = OCSVMDetector.grid_search(
         X_train,
         X_val,
         y_val,
@@ -324,7 +324,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         random_state=config.random_state,
     )
 
-    best_ensemble, _ = ensemble_grid_search(
+    best_ensemble, ensemble_results = ensemble_grid_search(
         best_if, best_ocsvm, X_val, y_val, config.ensemble_weights
     )
 
@@ -371,4 +371,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         "val_scores": val_scores,
         "y_val": y_val,
         "y_test": y_test,
+        "if_grid_results": if_results,
+        "ocsvm_grid_results": ocsvm_results,
+        "ensemble_grid_results": ensemble_results,
     }
