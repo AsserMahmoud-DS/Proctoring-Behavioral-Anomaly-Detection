@@ -21,14 +21,15 @@ class ChunkPrediction(BaseModel):
 
 class PredictionResponse(BaseModel):
     session_id: str
-    verdict: Literal["Anomalous" , "Normal"]
-    chunks_pred: list[ChunkPrediction] = Field(description="preds of n chunks sent, in order")
+    verdict: Literal["anomalous" , "normal"]
+    chunks_pred: list[ChunkPrediction] = Field(description="preds of n chunks sent, in order") # 0 normal 1 anomalous
 
 class InferenceConfig(BaseModel):
     model_config = ConfigDict(extra = "ignore")
     model: str
     chunk_size: int = Field(gt=0)
     step_size: int = Field(gt=0)
-    cheating_threshold: float
+    cheating_threshold: float  # Percentage of anomalous events to assume the chunk as anomalous
+    decision_threshold: float  # The threshold on the model's score to decide anomalies if below
     features_to_keep: list[str]
 
