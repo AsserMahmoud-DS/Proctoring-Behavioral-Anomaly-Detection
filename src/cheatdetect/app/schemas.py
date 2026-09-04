@@ -30,6 +30,6 @@ class InferenceConfig(BaseModel):
     chunk_size: int = Field(gt=0)
     step_size: int = Field(gt=0)
     cheating_threshold: float  # Percentage of anomalous events to assume the chunk as anomalous
-    decision_threshold: float  # The threshold on the model's score to decide anomalies if below
+    threshold: float  # The threshold on the model's score to decide anomalies if below
     features_to_keep: list[str]
 
