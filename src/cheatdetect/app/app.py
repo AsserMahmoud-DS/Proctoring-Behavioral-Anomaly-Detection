@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, asynccontextmanager
+from fastapi import FastAPI, Depends
+from contextlib import asynccontextmanager
 from .schemas import PredictionRequest, PredictionResponse
 from .service import PredictionService
 from .dependencies import get_predictor
