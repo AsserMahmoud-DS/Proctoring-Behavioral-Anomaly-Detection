@@ -7,8 +7,7 @@ import joblib
 from cheatdetect.app.schemas import InferenceConfig
 from cheatdetect.app.service import PredictionService
 from cheatdetect.models import AnomalyDetector
-
-MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "best_models"
+from cheatdetect.config import MODELS_DIR
 
 
 @lru_cache
@@ -18,8 +17,8 @@ def get_predictor() -> PredictionService:
     Uses @lru_cache so the model is deserialized exactly once across
     all requests. Subsequent calls return the cached instance.
     """
-    config_path = MODEL_DIR / "model_config.json"
-    model_path = MODEL_DIR / "best_model.joblib"
+    config_path = MODELS_DIR / "model_config.json"
+    model_path = MODELS_DIR / "best_model.joblib"
 
     with open(config_path) as f:
         config = InferenceConfig(**json.load(f))

@@ -43,7 +43,7 @@ class PredictionService:
         scores = self._detector.decision_function(X)
 
         for i, score in enumerate(scores):
-            is_anom = score > self._config.decision_threshold
+            is_anom = score > self._config.threshold
             chunks_preds.append(ChunkPrediction(chunk_index=i, score=score, isanomalous=is_anom))
             if is_anom:
                 anomaly_flag = 1
