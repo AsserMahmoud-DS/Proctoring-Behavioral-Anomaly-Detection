@@ -1,10 +1,10 @@
-# Proctoring Behavioral Anomaly Detection
+# CheatDetect: Behavioral Anomaly Detection
 
-Behavioral anomaly detection through mouse and keyboard actions collected from students during live exam sessions.
+Detects cheating behavior through mouse and keyboard actions collected from students during live exam sessions.
 
 ## Overview
 
-Detects cheating behavior by extracting kinematic and event-based features from raw session data, then classifying each time window as `anomalous` or `normal`. Built for small datasets (~20 sessions) using classical unsupervised ML approaches (Isolation Forest, One-Class SVM, and a weighted ensemble of both).
+Extracts kinematic and event-based features from raw session data, then classifies each time window as `anomalous` or `normal` using classical unsupervised ML (Isolation Forest, One-Class SVM, weighted ensemble). Built for small datasets (~20 sessions).
 
 ## Project Structure
 
@@ -47,7 +47,16 @@ CheatDetect/
 │   ├── pipeline/
 │   │   └── train.py                  #   prepare_data + train_pipeline orchestration
 │   └── app/                          # FastAPI inference API
+│       ├── app.py                    #   FastAPI app, lifespan, routes
+│       ├── schemas.py                #   Pydantic request/response models
+│       ├── service.py                #   PredictionService (stateful inference)
+│       ├── buffer.py                 #   WindowBuffer (per-session sliding window)
+│       └── dependencies.py           #   Model loading + DI
 └── tests/
+    ├── test_schema.py                #   Pydantic model validation
+    ├── test_buffer.py                #   Sliding window logic
+    ├── test_service.py               #   Service orchestration
+    └── test_api.py                   #   HTTP layer (TestClient)
 ```
 
 ## Feature Set (34 features per chunk + label)
@@ -71,20 +80,55 @@ uv venv cheatdetect
 uv sync
 
 # Run the full training pipeline
-python -c "
+uv run python -c "
 from cheatdetect.config import ExperimentConfig
-from cheatdetect.pipeline import train_pipeline
+from cheatdetect.pipeline.train import train_pipeline
 
 results = train_pipeline(ExperimentConfig())
 print(results['metrics_df'])
 "
 
 # Run the API
-uv run uvicorn src.cheatdetect.app.app:app --reload
+uv run uvicorn cheatdetect.app.app:app --reload
 
 # Run tests
 uv run pytest
 ```
+
+## API
+
+The inference API exposes two endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Returns `{"status": "ok"}` |
+| `POST` | `/predict` | Accepts a batch of events, returns verdict + per-chunk scores |
+
+### `POST /predict` — Request
+
+```json
+{
+  "session_id": "student_123",
+  "events": [
+    {"time": 0.0, "event_type": "mousemove", "x": 100.0, "y": 200.0},
+    {"time": 0.1, "event_type": "click", "x": 100.0, "y": 200.0, "action": "copy"}
+  ]
+}
+```
+
+### `POST /predict` — Response
+
+```json
+{
+  "session_id": "student_123",
+  "verdict": "anomalous",
+  "chunks_pred": [
+    {"chunk_index": 0, "score": 0.85, "isanomalous": true}
+  ]
+}
+```
+
+Events are buffered per `session_id` using a sliding window (`chunk_size` events, `step_size` overlap). The API returns a verdict once enough events have accumulated to form a window.
 
 ## Notebooks
 
@@ -95,7 +139,30 @@ jupytext --sync notebooks/eda.py
 jupytext --sync notebooks/train_evaluate.py
 ```
 
+## Testing
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run a specific test file
+uv run pytest tests/test_service.py -v
+```
+
+Tests are organized bottom-up by layer:
+
+| File | Layer | Tests |
+|------|-------|-------|
+| `test_schema.py` | Data contracts | 12 |
+| `test_buffer.py` | Windowing logic | 4 |
+| `test_service.py` | Inference orchestration | 5 |
+| `test_api.py` | HTTP transport | 4 |
+
 ## Tech Stack
 
-- Python 3.12, uv, FastAPI, Pydantic, scikit-learn, pandas, numpy, joblib
+- Python 3.12, uv, FastAPI, Pydantic v2, scikit-learn, pandas, numpy, joblib
 - Jupytext for notebook sync (`.py` ↔ `.ipynb`)
+- pytest for testing
