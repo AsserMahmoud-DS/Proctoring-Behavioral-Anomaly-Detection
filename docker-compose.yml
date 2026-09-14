@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports: 
+      - "8000:8000"
+    volumes:
+      - ./best_models/:/app/best_models 
+      - ./src:/app/src
+    command: uv run uvicorn cheatdetect.app.app:app --host 0.0.0.0 --port 8000 --reload
+
+
+# dev: docker compose up --build
