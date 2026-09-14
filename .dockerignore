@@ -1,0 +1,16 @@
+*.egg-info
+*.pyc
+*.txt
+.venv
+src/*.json
+
+.git/
+tests/
+reports/
+dataset/*
+plans/
+best_models/
+notebooks/
+
+research_agent.md
+AGENTS.md
