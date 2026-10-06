@@ -1,0 +1,323 @@
+"""LSTM autoencoder for sequence anomaly detection (research-only model).
+
+Each sample is a sequence of micro-chunk feature vectors (see
+``cheatdetect.data.sequences``). The encoder compresses the sequence into a
+latent vector which the decoder uses to reconstruct the full sequence.
+Trained on normal data only; per-sample reconstruction MSE is the anomaly
+score (higher = more anomalous), matching the sign convention of
+:class:`~cheatdetect.models.base.AnomalyDetector`.
+
+This module imports torch and is intentionally **not** re-exported from
+``cheatdetect.models`` so the FastAPI image (built without the dev
+dependencies) never imports it.
+"""
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from sklearn.metrics import average_precision_score
+from sklearn.model_selection import ParameterGrid
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import RobustScaler, StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
+
+from cheatdetect.data import Log1pSkewed
+
+from .base import SequenceAnomalyDetector
+
+
+class LSTMAutoencoder(nn.Module):
+    """LSTM encoder-decoder for unsupervised anomaly detection.
+
+    Encodes a sequence of micro-chunk feature vectors into a latent
+    representation, then reconstructs the sequence. Trained on normal
+    data only; reconstruction error serves as the anomaly score.
+    """
+
+    def __init__(self, input_dim, hidden_dim, num_layers=1, dropout=0.0):
+        super().__init__()
+        self.seq_len = None
+        encoder_dropout = dropout if num_layers > 1 else 0.0
+        self.encoder = nn.LSTM(
+            input_dim, hidden_dim, num_layers,
+            batch_first=True, dropout=encoder_dropout,
+        )
+        self.latent_dropout = nn.Dropout(dropout)
+        self.decoder = nn.LSTM(
+            hidden_dim, hidden_dim, num_layers,
+            batch_first=True, dropout=encoder_dropout,
+        )
+        self.output_layer = nn.Linear(hidden_dim, input_dim)
+
+    def forward(self, x):
+        self.seq_len = x.size(1)
+        _, (hn, _) = self.encoder(x)
+        latent = self.latent_dropout(hn[-1])
+        repeated = latent.unsqueeze(1).repeat(1, self.seq_len, 1)
+        decoded, _ = self.decoder(repeated)
+        return self.output_layer(decoded)
+
+
+def _to_tensor(arr: np.ndarray) -> torch.Tensor:
+    return torch.tensor(arr, dtype=torch.float32)
+
+
+def _train_lstm_ae(
+    model: LSTMAutoencoder,
+    X_train_arr: np.ndarray,
+    X_es_arr: np.ndarray | None = None,
+    epochs: int = 100,
+    patience: int = 10,
+    lr: float = 1e-3,
+    batch_size: int = 64,
+) -> LSTMAutoencoder:
+    """Train the LSTM AE on normal-only data.
+
+    Args:
+        model: The autoencoder to train (modified in place).
+        X_train_arr: Normal training sequences.
+        X_es_arr: Optional held-out **normal** sequences used for early
+            stopping. When ``None``, no early stopping is applied: the model
+            trains for the full ``epochs`` budget and the final weights are
+            kept (``best_epoch`` is set to ``None``).
+        epochs, patience, lr, batch_size: Training controls.
+    """
+    train_dataset = TensorDataset(_to_tensor(X_train_arr))
+    train_loader = DataLoader(
+        train_dataset, batch_size=min(batch_size, len(X_train_arr)), shuffle=True
+    )
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    criterion = nn.MSELoss()
+
+    if X_es_arr is None:
+        for _ in range(epochs):
+            model.train()
+            for (batch,) in train_loader:
+                optimizer.zero_grad()
+                loss = criterion(model(batch), batch)
+                loss.backward()
+                optimizer.step()
+        model.epochs_trained = epochs
+        model.best_epoch = None
+        return model
+
+    es_tensor = _to_tensor(X_es_arr)
+    best_es_loss = float("inf")
+    best_state = None
+    best_epoch = -1
+    patience_counter = 0
+
+    for epoch in range(epochs):
+        model.train()
+        for (batch,) in train_loader:
+            optimizer.zero_grad()
+            recon = model(batch)
+            loss = criterion(recon, batch)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            es_loss = criterion(model(es_tensor), es_tensor).item()
+
+        if es_loss < best_es_loss:
+            best_es_loss = es_loss
+            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            best_epoch = epoch
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    model.epochs_trained = epoch + 1
+    model.best_epoch = best_epoch
+    return model
+
+
+def _lstm_anomaly_scores(
+    model: LSTMAutoencoder, X_arr: np.ndarray, batch_size: int = 64
+) -> np.ndarray:
+    """Compute per-sample MSE reconstruction error as anomaly scores."""
+    model.eval()
+    tensor = _to_tensor(X_arr)
+    dataset = TensorDataset(tensor)
+    loader = DataLoader(
+        dataset, batch_size=min(batch_size, len(X_arr)), shuffle=False
+    )
+    criterion = nn.MSELoss(reduction="none")
+
+    scores = []
+    with torch.no_grad():
+        for (batch,) in loader:
+            recon = model(batch)
+            mse = criterion(recon, batch).mean(dim=(1, 2))
+            scores.append(mse.cpu().numpy())
+    return np.concatenate(scores)
+
+
+class LSTMAutoencoderDetector(SequenceAnomalyDetector):
+    """Sequence anomaly detector wrapping an LSTM autoencoder.
+
+    Supports two preprocessing modes via ``preprocessing``:
+
+    - ``"log1p_robust"`` (default): ``log1p`` on skewed features then
+      ``RobustScaler`` — matches the flat IF/OCSVM models.
+    - ``"standard"``: plain ``StandardScaler`` — the original AE recipe.
+
+    Data is reshaped to ``(n_samples, seq_len, n_features)`` for the model.
+    """
+
+    def __init__(
+        self,
+        feature_names: list[str],
+        input_dim: int,
+        seq_len: int,
+        skewed_cols: list[str] | None = None,
+        hidden_dim: int = 16,
+        num_layers: int = 1,
+        dropout: float = 0.1,
+        lr: float = 1e-3,
+        batch_size: int = 64,
+        epochs: int = 100,
+        patience: int = 10,
+        preprocessing: str = "standard",
+        random_state: int = 42,
+    ):
+        self.feature_names = list(feature_names)
+        self.input_dim = input_dim
+        self.seq_len = seq_len
+        self.skewed_cols = list(skewed_cols) if skewed_cols else []
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.lr = lr
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.patience = patience
+        self.preprocessing = preprocessing
+        self.random_state = random_state
+
+        if preprocessing == "standard":
+            self.preprocessor = Pipeline([("scaler", StandardScaler())])
+        elif preprocessing == "log1p_robust":
+            self.preprocessor = Pipeline(
+                [
+                    ("log1p", Log1pSkewed(self.skewed_cols)),
+                    ("scaler", RobustScaler()),
+                ]
+            )
+        else:
+            raise ValueError(
+                f"Unknown preprocessing '{preprocessing}'; expected "
+                "'standard' or 'log1p_robust'"
+            )
+        self.model: LSTMAutoencoder | None = None
+
+    def _preprocess(self, X: np.ndarray, fit: bool) -> np.ndarray:
+        n_samples, seq_len, n_features = X.shape
+        if n_features != self.input_dim:
+            raise ValueError(
+                f"Expected {self.input_dim} features, got {n_features}"
+            )
+        flat = pd.DataFrame(
+            X.reshape(-1, n_features), columns=self.feature_names
+        )
+        transformed = (
+            self.preprocessor.fit_transform(flat)
+            if fit
+            else self.preprocessor.transform(flat)
+        )
+        return np.asarray(transformed, dtype=np.float32).reshape(
+            n_samples, seq_len, n_features
+        )
+
+    def fit(
+        self, X: np.ndarray, X_es: np.ndarray | None = None
+    ) -> "LSTMAutoencoderDetector":
+        torch.manual_seed(self.random_state)
+        np.random.seed(self.random_state)
+
+        X_scaled = self._preprocess(X, fit=True)
+        X_es_scaled = None if X_es is None else self._preprocess(X_es, fit=False)
+
+        self.model = LSTMAutoencoder(
+            self.input_dim, self.hidden_dim, self.num_layers, self.dropout
+        )
+        _train_lstm_ae(
+            self.model,
+            X_scaled,
+            X_es_scaled,
+            epochs=self.epochs,
+            patience=self.patience,
+            lr=self.lr,
+            batch_size=self.batch_size,
+        )
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        if self.model is None:
+            raise RuntimeError("LSTMAutoencoderDetector is not fitted")
+        X_scaled = self._preprocess(X, fit=False)
+        return _lstm_anomaly_scores(self.model, X_scaled, self.batch_size)
+
+    @classmethod
+    def grid_search(
+        cls,
+        X_train: np.ndarray,
+        X_val: np.ndarray,
+        y_val: np.ndarray,
+        X_es: np.ndarray | None,
+        feature_names: list[str],
+        param_grid: dict,
+        fixed_kwargs: dict | None = None,
+        random_state: int = 42,
+    ) -> tuple["LSTMAutoencoderDetector", pd.DataFrame]:
+        """Search *param_grid* and return the best detector by validation PR-AUC.
+
+        Mirrors ``IsolationForestDetector.grid_search``. Gridded parameters
+        (``hidden_dim``, ``num_layers``, ``dropout``, ``lr``, ``batch_size``)
+        are swept; ``fixed_kwargs`` carries the sequence geometry
+        (``input_dim``, ``seq_len``), training controls (``epochs``,
+        ``patience``), ``preprocessing``, and ``skewed_cols`` when needed.
+
+        Args:
+            X_train, X_val: 3D training / validation sequences.
+            y_val: Binary validation labels (1 = anomalous). Used only for
+                model selection (PR-AUC).
+            X_es: Optional held-out **normal** sequences for early stopping.
+            feature_names: Column names for the feature axis.
+            param_grid: Dict of constructor params → list of candidates.
+            fixed_kwargs: Constructor params held constant across the grid.
+            random_state: Seed for reproducibility.
+
+        Returns:
+            ``(best_detector, results_df)`` where results are sorted by PR-AUC.
+        """
+        fixed_kwargs = dict(fixed_kwargs or {})
+        results = []
+        best_detector: LSTMAutoencoderDetector | None = None
+        best_pr_auc = -np.inf
+
+        for params in ParameterGrid(param_grid):
+            detector = cls(
+                feature_names=feature_names,
+                random_state=random_state,
+                **fixed_kwargs,
+                **params,
+            )
+            detector.fit(X_train, X_es=X_es)
+            pr_auc = average_precision_score(
+                y_val, detector.decision_function(X_val)
+            )
+            results.append({**params, "pr_auc": pr_auc})
+            if pr_auc > best_pr_auc:
+                best_pr_auc = pr_auc
+                best_detector = detector
+
+        results_df = pd.DataFrame(results).sort_values("pr_auc", ascending=False)
+        return best_detector, results_df
