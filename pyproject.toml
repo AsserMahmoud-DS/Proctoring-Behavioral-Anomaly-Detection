@@ -27,4 +27,19 @@ formats = "ipynb,py:percent"
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
+    # Notebook tooling: jupytext keeps the .py twins in sync; nbconvert
+    # provides the executor for `jupytext --execute`.
+    "jupytext>=1.16",
+    "nbconvert>=7.16",
+    # Research-only dependency (LSTM autoencoder). Kept out of the API image
+    # via the Dockerfile's `uv sync --no-dev`. CPU wheel to avoid CUDA bloat.
+    "torch>=2.2",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
