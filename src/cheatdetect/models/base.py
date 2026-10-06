@@ -42,13 +42,16 @@ class SequenceAnomalyDetector(ABC):
 
     @abstractmethod
     def fit(
-        self, X: np.ndarray, X_val: np.ndarray | None = None
+        self, X: np.ndarray, X_es: np.ndarray | None = None
     ) -> "SequenceAnomalyDetector":
         """Fit the detector on (normal) training sequences.
 
         Args:
             X: Training sequences ``(n_samples, seq_len, n_features)``.
-            X_val: Optional validation sequences used for early stopping.
+            X_es: Optional held-out **normal** sequences used for early
+                stopping. Should come from the same distribution as ``X``.
+                When ``None``, training runs the full fixed epoch budget
+                without early stopping.
         """
 
     @abstractmethod
