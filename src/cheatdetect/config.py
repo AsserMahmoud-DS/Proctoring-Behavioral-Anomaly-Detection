@@ -20,6 +20,12 @@ SPLIT_INFO_PATH = PROCESSED_DIR / "split_info.json"
 TRAIN_AUGMENTED_PATH = PROCESSED_DIR / "train_augmented.pkl"
 FEATURE_LISTS_PATH = PROCESSED_DIR / "feature_lists.json"
 
+# LSTM sequence caches (raw micro-chunk sequences, pre-feature-selection)
+LSTM_TRAIN_PATH = PROCESSED_DIR / "lstm_train.npz"
+LSTM_VAL_PATH = PROCESSED_DIR / "lstm_val.npz"
+LSTM_TEST_PATH = PROCESSED_DIR / "lstm_test.npz"
+LSTM_ES_PATH = PROCESSED_DIR / "lstm_es.npz"
+
 # Reports directories
 EDA_DIR = REPORTS_DIR / "eda"
 VAL_DIR = REPORTS_DIR / "val_results"
@@ -58,6 +64,26 @@ class ExperimentConfig:
 
     # Ensemble
     ensemble_weights: tuple[float, ...] = (0.3, 0.5, 0.7)
+
+    # LSTM autoencoder (research-only comparison model).
+    # Disabled by default: torch is a dev-only dependency and the 108-config
+    # grid is expensive. The train_evaluate notebook opts in explicitly.
+    lstm_enabled: bool = False
+    lstm_sub_chunk: int = 10
+    lstm_sub_step: int = 5
+    lstm_hidden_dims: tuple[int, ...] = (8, 16, 32)
+    lstm_num_layers: tuple[int, ...] = (1, 2)
+    lstm_dropouts: tuple[float, ...] = (0.1, 0.3)
+    lstm_lrs: tuple[float, ...] = (1e-3, 5e-4, 1e-4)
+    lstm_batch_sizes: tuple[int, ...] = (32, 64, 128)
+    lstm_epochs: int = 100
+    lstm_patience: int = 10
+    # Early-stopping source for the AE: held-out normal sequences
+    # ("normal_val"), the combined (mixed) val ("mixed_val"), or no early
+    # stopping at all ("none"). "none" is supported but not evaluated.
+    lstm_es_source: str = "normal_val"
+    # "standard" (AE recipe) or "log1p_robust" (flat-model recipe).
+    lstm_preprocessing: str = "standard"
 
 # if __name__ == "__main__":
 #     cfg1 = ExperimentConfig(chunk_size = 50, if_n_estimators = (20,30,40), ocsvm_nu = (1,2,3))

@@ -13,6 +13,9 @@ Public API:
     - ``find_skewed_features`` — identify columns eligible for log1p.
     - ``add_coordinate_noise``, ``augment_session_data`` —
       Gaussian-noise data augmentation for normal sessions.
+    - ``extract_sequences_from_sessions``, ``augment_sequences``,
+      ``align_sequence_features``, ``sequence_length`` — micro-chunk
+      sequence construction for temporal models (LSTM autoencoder).
     - ``select_features`` — zero-variance + correlation-based feature selection.
     - ``feature_summary`` — keep/drop decision table for EDA.
     - ``detect_zero_variance``, ``find_correlated_pairs``,
@@ -32,6 +35,12 @@ from .features import (
 from .build import merge_window_switch_events
 from .transform import Log1pSkewed, find_skewed_features
 from .augment import add_coordinate_noise, augment_session_data
+from .sequences import (
+    align_sequence_features,
+    augment_sequences,
+    extract_sequences_from_sessions,
+    sequence_length,
+)
 from .selection import (
     classify_correlation_pair,
     detect_zero_variance,
@@ -57,6 +66,10 @@ __all__ = [
     "find_skewed_features",
     "add_coordinate_noise",
     "augment_session_data",
+    "extract_sequences_from_sessions",
+    "augment_sequences",
+    "align_sequence_features",
+    "sequence_length",
     "select_features",
     "feature_summary",
     "detect_zero_variance",

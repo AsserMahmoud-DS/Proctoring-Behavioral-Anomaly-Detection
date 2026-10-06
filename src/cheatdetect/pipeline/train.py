@@ -18,6 +18,10 @@ from sklearn.model_selection import train_test_split
 from cheatdetect.config import (
     EDA_DIR,
     FEATURE_LISTS_PATH,
+    LSTM_ES_PATH,
+    LSTM_TEST_PATH,
+    LSTM_TRAIN_PATH,
+    LSTM_VAL_PATH,
     MODELS_DIR,
     MIXED_DIR,
     NORMAL_DIR,
@@ -34,14 +38,19 @@ from cheatdetect.config import (
     ExperimentConfig,
 )
 from cheatdetect.data import (
+    align_sequence_features,
+    augment_sequences,
     augment_session_data,
     clean_features,
     clean_session_data,
+    extract_sequences_from_sessions,
     find_skewed_features,
     load_sessions,
+    load_single_session,
     merge_window_switch_events,
     process_sessions,
     select_features,
+    sequence_length,
 )
 from cheatdetect.eval import compare_models, evaluate_model
 from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
@@ -276,6 +285,219 @@ def prepare_data(config: ExperimentConfig) -> dict:
     }
 
 
+def _load_or_build_sequences(cache_path: Path, builder):
+    """Load cached sequences or build + cache them as a compressed ``.npz``."""
+    if cache_path.exists():
+        logger.info("Loading cached sequences from %s", cache_path)
+        data = np.load(cache_path, allow_pickle=True)
+        return data["X"], data["y"], [str(n) for n in data["feature_names"]]
+
+    X, y, feature_names = builder()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        cache_path, X=X, y=y, feature_names=np.array(feature_names, dtype=object)
+    )
+    return X, y, feature_names
+
+
+def prepare_lstm_data(
+    config: ExperimentConfig, data: dict, features_to_keep: list[str]
+) -> dict:
+    """Build (and cache) aligned micro-chunk sequences for the LSTM AE.
+
+    Reuses the exact session split from :func:`prepare_data`. Training
+    sequences are the augmented normal set (matching the flat models);
+    validation is normal + mixed in the same order as the flat matrices.
+
+    Args:
+        config: Frozen experiment configuration.
+        data: The dict returned by :func:`prepare_data` (for its ``split``).
+        features_to_keep: Curated feature list from the flat pipeline.
+
+    Returns:
+        Dict with aligned ``X_train``, ``X_val``, ``X_test`` (3D arrays),
+        their labels, the feature names, and the sequence length.
+    """
+    split = data["split"]
+    # Key by full path: normal and mixed directories may contain files with
+    # identical basenames, so a basename-keyed dict would collide.
+    sessions_clean: dict[Path, pd.DataFrame] = {}
+    for directory in (NORMAL_DIR, MIXED_DIR):
+        for path in sorted(directory.glob("*.csv")):
+            sessions_clean[path] = clean_session_data(load_single_session(path))
+
+    def ordered(files: list[Path]) -> list[pd.DataFrame]:
+        return [sessions_clean[f] for f in files if f in sessions_clean]
+
+    def geometry() -> dict:
+        return {
+            "chunk_size": config.chunk_size,
+            "step_size": config.step_size,
+            "sub_chunk": config.lstm_sub_chunk,
+            "sub_step": config.lstm_sub_step,
+        }
+
+    def build_train() -> tuple[np.ndarray, np.ndarray, list[str]]:
+        files = ordered(split["normal_train"])
+        X_orig, y_orig, names = extract_sequences_from_sessions(
+            files, cheating_threshold=config.cheating_threshold, **geometry()
+        )
+        if not config.aug_enabled:
+            return X_orig, y_orig, names
+        X_aug, y_aug, _ = augment_sequences(
+            files,
+            n_copies=config.aug_n_copies,
+            sigma_range=(config.aug_sigma_min, config.aug_sigma_max),
+            cheating_threshold=config.cheating_threshold,
+            random_state=config.random_state,
+            **geometry(),
+        )
+        return (
+            np.concatenate([X_orig, X_aug], axis=0),
+            np.concatenate([y_orig, y_aug]),
+            names,
+        )
+
+    def build_val() -> tuple[np.ndarray, np.ndarray, list[str]]:
+        X_normal, y_normal, names = extract_sequences_from_sessions(
+            ordered(split["normal_val"]),
+            cheating_threshold=config.cheating_threshold,
+            **geometry(),
+        )
+        X_mixed, y_mixed, _ = extract_sequences_from_sessions(
+            ordered(split["mixed_val"]),
+            cheating_threshold=config.cheating_threshold,
+            **geometry(),
+        )
+        return (
+            np.concatenate([X_normal, X_mixed], axis=0),
+            np.concatenate([y_normal, y_mixed]),
+            names,
+        )
+
+    def build_es() -> tuple[np.ndarray, np.ndarray, list[str]]:
+        """Held-out pure-normal sequences for early stopping."""
+        return extract_sequences_from_sessions(
+            ordered(split["normal_val"]),
+            cheating_threshold=config.cheating_threshold,
+            **geometry(),
+        )
+
+    def build_test() -> tuple[np.ndarray, np.ndarray, list[str]]:
+        return extract_sequences_from_sessions(
+            ordered(split["mixed_test"]),
+            cheating_threshold=config.cheating_threshold,
+            **geometry(),
+        )
+
+    X_train, y_train, raw_names = _load_or_build_sequences(
+        LSTM_TRAIN_PATH, build_train
+    )
+    X_val, y_val, _ = _load_or_build_sequences(LSTM_VAL_PATH, build_val)
+    X_es, y_es, _ = _load_or_build_sequences(LSTM_ES_PATH, build_es)
+    X_test, y_test, _ = _load_or_build_sequences(LSTM_TEST_PATH, build_test)
+
+    return {
+        "X_train": align_sequence_features(X_train, raw_names, features_to_keep),
+        "y_train": y_train,
+        "X_val": align_sequence_features(X_val, raw_names, features_to_keep),
+        "y_val": y_val,
+        "X_es": align_sequence_features(X_es, raw_names, features_to_keep),
+        "y_es": y_es,
+        "X_test": align_sequence_features(X_test, raw_names, features_to_keep),
+        "y_test": y_test,
+        "feature_names": features_to_keep,
+        "seq_len": sequence_length(
+            config.chunk_size, config.lstm_sub_chunk, config.lstm_sub_step
+        ),
+    }
+
+
+def _resolve_lstm_es(config: ExperimentConfig, lstm_data: dict) -> np.ndarray | None:
+    """Select the sequence set used for early stopping.
+
+    ``normal_val`` (default) uses held-out pure-normal sequences, which match
+    the training distribution. ``mixed_val`` reproduces the old behavior
+    (normal + anomalies). ``none`` disables early stopping.
+    """
+    source = config.lstm_es_source
+    if source == "none":
+        return None
+    if source == "normal_val":
+        if lstm_data["y_es"].any():
+            raise ValueError("LSTM early-stopping set must contain only normals")
+        return lstm_data["X_es"]
+    if source == "mixed_val":
+        return lstm_data["X_val"]
+    raise ValueError(
+        f"Unknown lstm_es_source '{source}'; expected normal_val, mixed_val, none"
+    )
+
+
+def _run_lstm(
+    config: ExperimentConfig,
+    data: dict,
+    features_to_keep: list[str],
+) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+    """Train the research-only LSTM AE and return its val/test scores.
+
+    The detector is imported lazily so importing the pipeline does not
+    require torch (a dev-only dependency).
+    """
+    from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
+
+    lstm_data = prepare_lstm_data(config, data, features_to_keep)
+    X_train = lstm_data["X_train"]
+    X_val = lstm_data["X_val"]
+    y_val = lstm_data["y_val"]
+    X_test = lstm_data["X_test"]
+    y_test = lstm_data["y_test"]
+    X_es = _resolve_lstm_es(config, lstm_data)
+
+    # The LSTM samples must map 1:1 onto the flat chunks for a fair comparison.
+    if len(y_val) != len(data["y_val"]) or not np.array_equal(y_val, data["y_val"]):
+        raise ValueError(
+            "LSTM validation labels are not aligned with the flat pipeline; "
+            "the sequence extraction order/count drifted."
+        )
+    if len(y_test) != len(data["y_test"]) or not np.array_equal(
+        y_test, data["y_test"]
+    ):
+        raise ValueError(
+            "LSTM test labels are not aligned with the flat pipeline; "
+            "the sequence extraction order/count drifted."
+        )
+
+    best_detector, grid_results = LSTMAutoencoderDetector.grid_search(
+        X_train,
+        X_val,
+        y_val,
+        X_es,
+        lstm_data["feature_names"],
+        {
+            "hidden_dim": list(config.lstm_hidden_dims),
+            "num_layers": list(config.lstm_num_layers),
+            "dropout": list(config.lstm_dropouts),
+            "lr": list(config.lstm_lrs),
+            "batch_size": list(config.lstm_batch_sizes),
+        },
+        fixed_kwargs={
+            "input_dim": len(features_to_keep),
+            "seq_len": lstm_data["seq_len"],
+            "epochs": config.lstm_epochs,
+            "patience": config.lstm_patience,
+            "preprocessing": config.lstm_preprocessing,
+        },
+        random_state=config.random_state,
+    )
+
+    return (
+        best_detector.decision_function(X_val),
+        best_detector.decision_function(X_test),
+        grid_results,
+    )
+
+
 def train_pipeline(config: ExperimentConfig) -> dict:
     """Run the full experiment and return the results dict.
 
@@ -339,13 +561,14 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     }
 
     # ---- Evaluation -------------------------------------------------------
-    test_results = [
+    flat_test_results = [
         evaluate_model(name, det.decision_function(X_test), thresholds[name], y_test)
         for name, det in detectors.items()
     ]
-    metrics_df = compare_models(test_results)
 
-    best_name = metrics_df["pr_auc"].idxmax()
+    # Best-model selection is restricted to the deployable flat models.
+    selection_df = compare_models(flat_test_results)
+    best_name = selection_df["pr_auc"].idxmax()
     best_detector = detectors[best_name]
     best_threshold = thresholds[best_name]
 
@@ -356,8 +579,26 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         features_to_keep,
         skewed_features,
         config,
-        float(metrics_df.loc[best_name, "pr_auc"]),
+        float(selection_df.loc[best_name, "pr_auc"]),
     )
+
+    # Research-only LSTM comparison — surfaced in the table/plots but never
+    # eligible to be the serialized production model.
+    test_results = list(flat_test_results)
+    lstm_grid_results = None
+    if config.lstm_enabled:
+        lstm_val_scores, lstm_test_scores, lstm_grid_results = _run_lstm(
+            config, data, features_to_keep
+        )
+        lstm_threshold = tune_threshold(
+            lstm_val_scores, y_val, precision_floor=config.precision_floor
+        )["threshold"]
+        val_scores["LSTM-AE"] = lstm_val_scores
+        test_results.append(
+            evaluate_model("LSTM-AE", lstm_test_scores, lstm_threshold, y_test)
+        )
+
+    metrics_df = compare_models(test_results)
 
     logger.info("Training complete. Best model: %s", best_name)
     return {
@@ -374,4 +615,5 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         "if_grid_results": if_results,
         "ocsvm_grid_results": ocsvm_results,
         "ensemble_grid_results": ensemble_results,
+        "lstm_grid_results": lstm_grid_results,
     }
