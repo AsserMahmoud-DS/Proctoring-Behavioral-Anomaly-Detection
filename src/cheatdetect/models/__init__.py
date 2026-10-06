@@ -3,6 +3,10 @@
 Provides a shared :class:`AnomalyDetector` interface, concrete Isolation
 Forest and One-Class SVM detectors, a weighted ensemble, and threshold
 tuning.
+
+The LSTM autoencoder (``cheatdetect.models.lstm_ae``) is intentionally not
+re-exported here: it imports torch, which is a dev-only dependency kept out
+of the API image. Import it explicitly where needed.
 """
 
 from .base import AnomalyDetector
