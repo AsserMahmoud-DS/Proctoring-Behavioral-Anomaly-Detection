@@ -63,7 +63,7 @@ class ExperimentConfig:
     ocsvm_kernel: tuple[str, ...] = ("rbf",)
 
     # Ensemble
-    ensemble_weights: tuple[float, ...] = (0.3, 0.5, 0.7)
+    ensemble_weights: tuple[float, ...] = (0.0, 0.3, 0.5, 0.7, 1.0)
 
     # LSTM autoencoder (research-only comparison model).
     # Disabled by default: torch is a dev-only dependency and the 108-config
