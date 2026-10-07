@@ -89,6 +89,11 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
     data = tr.prepare_data(config)
     lstm = tr.prepare_lstm_data(config, data, data["features_to_keep"])
 
+    pd.testing.assert_frame_equal(
+        data["X_val_normal"].reset_index(drop=True),
+        data["X_val"].iloc[: len(data["X_val_normal"])].reset_index(drop=True),
+    )
+
     assert lstm["X_train"].shape[1] == 4  # (20 - 5) // 5 + 1
     assert lstm["X_val"].shape[0] == len(data["y_val"])
     assert lstm["X_test"].shape[0] == len(data["y_test"])
@@ -112,6 +117,28 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
 def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
     """Full pipeline runs with the LSTM enabled; LSTM never becomes best_model."""
     _setup_dataset(tmp_path, monkeypatch)
+    ensemble_search = tr.ensemble_grid_search
+    calibrated = []
+
+    def capture_ensemble(if_detector, ocsvm_detector, X_val, y_val, weights, *, X_ref):
+        assert len(X_ref) == 11
+        assert len(X_ref) < len(X_val)
+        ensemble, results = ensemble_search(
+            if_detector, ocsvm_detector, X_val, y_val, weights, X_ref=X_ref
+        )
+        assert ensemble.if_detector is if_detector
+        assert ensemble.ocsvm_detector is ocsvm_detector
+        expected_center = np.median(
+            np.column_stack(
+                [if_detector.decision_function(X_ref), ocsvm_detector.decision_function(X_ref)]
+            ),
+            axis=0,
+        )
+        np.testing.assert_allclose(ensemble.score_scaler.center_, expected_center)
+        calibrated.append(ensemble)
+        return ensemble, results
+
+    monkeypatch.setattr(tr, "ensemble_grid_search", capture_ensemble)
 
     config = ExperimentConfig(
         chunk_size=20,
@@ -145,5 +172,6 @@ def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
     assert "LSTM-AE" in results["metrics_df"].index
     assert results["best_name"] in {"IF", "OCSVM", "Ensemble"}
     assert results["lstm_grid_results"] is not None
+    assert len(calibrated) == 1
     assert "LSTM-AE" in results["val_scores"]
     assert (tmp_path / "models" / "best_model.joblib").exists()
