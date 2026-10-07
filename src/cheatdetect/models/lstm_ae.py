@@ -17,7 +17,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from cheatdetect.data import Log1pSkewed
 
-from .base import SequenceAnomalyDetector
+from .base import SequenceAnomalyDetector, validate_selection_labels
 
 
 class LSTMAutoencoder(nn.Module):
@@ -277,7 +277,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         fixed_kwargs: dict | None = None,
         random_state: int = 42,
     ) -> tuple["LSTMAutoencoderDetector", pd.DataFrame]:
-        """Search *param_grid* and return the best detector by validation PR-AUC.
+        """Search *param_grid* and return the best detector by validation ROC-AUC.
 
         Mirrors ``IsolationForestDetector.grid_search``. Gridded parameters
         (``hidden_dim``, ``num_layers``, ``dropout``, ``lr``, ``batch_size``)
@@ -288,7 +288,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         Args:
             X_train, X_val: 3D training / validation sequences.
             y_val: Binary validation labels (1 = anomalous). Used only for
-                model selection (PR-AUC).
+                model selection (ROC-AUC).
             X_es: Optional held-out **normal** sequences for early stopping.
             feature_names: Column names for the feature axis.
             param_grid: Dict of constructor params → list of candidates.
@@ -296,12 +296,13 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
             random_state: Seed for reproducibility.
 
         Returns:
-            ``(best_detector, results_df)`` where results are sorted by PR-AUC.
+            ``(best_detector, results_df)`` sorted by ROC-AUC, with PR-AUC reported.
         """
+        validate_selection_labels(y_val)
         fixed_kwargs = dict(fixed_kwargs or {})
         results = []
         best_detector: LSTMAutoencoderDetector | None = None
-        best_pr_auc = -np.inf
+        best_roc_auc = -np.inf
 
         for params in ParameterGrid(param_grid):
             detector = cls(
@@ -311,13 +312,15 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
                 **params,
             )
             detector.fit(X_train, X_es=X_es)
-            pr_auc = average_precision_score(
-                y_val, detector.decision_function(X_val)
-            )
-            results.append({**params, "pr_auc": pr_auc})
-            if pr_auc > best_pr_auc:
-                best_pr_auc = pr_auc
+            scores = detector.decision_function(X_val)
+            roc_auc = roc_auc_score(y_val, scores)
+            pr_auc = average_precision_score(y_val, scores)
+            results.append({**params, "roc_auc": roc_auc, "pr_auc": pr_auc})
+            if roc_auc > best_roc_auc:
+                best_roc_auc = roc_auc
                 best_detector = detector
 
-        results_df = pd.DataFrame(results).sort_values("pr_auc", ascending=False)
+        results_df = pd.DataFrame(results).sort_values(
+            "roc_auc", ascending=False, kind="stable"
+        )
         return best_detector, results_df

@@ -6,6 +6,14 @@ import numpy as np
 import pandas as pd
 
 
+def validate_selection_labels(y_val: np.ndarray) -> None:
+    """ROC-AUC selection requires both binary validation classes."""
+    if not np.array_equal(np.unique(y_val), [0, 1]):
+        raise ValueError(
+            "ROC-AUC model selection requires both normal (0) and anomalous (1) validation labels"
+        )
+
+
 class AnomalyDetector(ABC):
     """Interface for all anomaly detectors.
 

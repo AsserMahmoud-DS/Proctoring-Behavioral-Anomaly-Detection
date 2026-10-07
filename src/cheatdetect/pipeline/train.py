@@ -13,6 +13,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 from cheatdetect.config import (
@@ -54,6 +55,7 @@ from cheatdetect.data import (
 )
 from cheatdetect.eval import compare_models, evaluate_model
 from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
+from cheatdetect.models.base import validate_selection_labels
 from cheatdetect.models.ensemble import grid_search as ensemble_grid_search
 
 logger = logging.getLogger(__name__)
@@ -217,6 +219,9 @@ def _serialize_model(
     skewed_features: list[str],
     config: ExperimentConfig,
     pr_auc_test: float,
+    *,
+    selection_metric: str,
+    selection_score_val: float,
 ) -> None:
     """Persist the best detector and the inference-ready config."""
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -231,6 +236,8 @@ def _serialize_model(
         "step_size": config.step_size,
         "cheating_threshold": config.cheating_threshold,
         "pr_auc_test": pr_auc_test,
+        "selection_metric": selection_metric,
+        "selection_score_val": float(selection_score_val),
         "random_state": config.random_state,
     }
     with open(MODELS_DIR / "model_config.json", "w") as f:
@@ -514,6 +521,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     X_train = data["X_train"]
     X_val = data["X_val"]
     y_val = data["y_val"]
+    validate_selection_labels(y_val)
     X_test = data["X_test"]
     y_test = data["y_test"]
     features_to_keep = data["features_to_keep"]
@@ -566,17 +574,20 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         for name in detectors
     }
 
+    selection_metric = "roc_auc"
+    selection_scores = {
+        name: roc_auc_score(y_val, scores)
+        for name, scores in val_scores.items()
+    }
+    best_name = max(selection_scores, key=selection_scores.get)
+    best_detector = detectors[best_name]
+    best_threshold = thresholds[best_name]
+
     # ---- Evaluation -------------------------------------------------------
     flat_test_results = [
         evaluate_model(name, det.decision_function(X_test), thresholds[name], y_test)
         for name, det in detectors.items()
     ]
-
-    # Best-model selection is restricted to the deployable flat models.
-    selection_df = compare_models(flat_test_results)
-    best_name = selection_df["pr_auc"].idxmax()
-    best_detector = detectors[best_name]
-    best_threshold = thresholds[best_name]
 
     _serialize_model(
         best_detector,
@@ -585,7 +596,9 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         features_to_keep,
         skewed_features,
         config,
-        float(selection_df.loc[best_name, "pr_auc"]),
+        next(result["pr_auc"] for result in flat_test_results if result["model"] == best_name),
+        selection_metric=selection_metric,
+        selection_score_val=selection_scores[best_name],
     )
 
     # Research-only LSTM comparison — surfaced in the table/plots but never
@@ -611,6 +624,8 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         "best_detector": best_detector,
         "best_name": best_name,
         "best_threshold": best_threshold,
+        "selection_metric": selection_metric,
+        "selection_score_val": selection_scores[best_name],
         "test_results": test_results,
         "metrics_df": metrics_df,
         "features_to_keep": features_to_keep,

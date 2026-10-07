@@ -100,9 +100,9 @@ def test_grid_search_returns_sorted_results():
     assert isinstance(best, LSTMAutoencoderDetector)
     assert len(results) == 2
     expected_columns = {
-        "hidden_dim", "num_layers", "dropout", "lr", "batch_size", "pr_auc",
+        "hidden_dim", "num_layers", "dropout", "lr", "batch_size", "roc_auc", "pr_auc",
     }
     assert expected_columns.issubset(results.columns)
-    assert results["pr_auc"].is_monotonic_decreasing
+    assert results["roc_auc"].is_monotonic_decreasing
     # Best detector corresponds to the top row of the sorted results.
     assert best.hidden_dim == results.iloc[0]["hidden_dim"]

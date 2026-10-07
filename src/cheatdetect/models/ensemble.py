@@ -2,10 +2,10 @@
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.preprocessing import RobustScaler
 
-from .base import AnomalyDetector
+from .base import AnomalyDetector, validate_selection_labels
 
 
 class EnsembleDetector(AnomalyDetector):
@@ -80,7 +80,7 @@ def grid_search(
     *,
     X_ref: pd.DataFrame,
 ) -> tuple[EnsembleDetector, pd.DataFrame]:
-    """Sweep the IF weight and return the best ensemble by validation PR-AUC.
+    """Sweep the IF weight and return the best ensemble by validation ROC-AUC.
 
     Takes already-fitted sub-detectors — the weight does not change the
     underlying models, only how their scores are combined.
@@ -88,8 +88,9 @@ def grid_search(
     Only ``X_val`` and ``y_val`` determine the selected weight.
 
     Returns:
-        ``(best_ensemble, results_df)`` where results are sorted by PR-AUC.
+        ``(best_ensemble, results_df)`` sorted by ROC-AUC, with PR-AUC reported.
     """
+    validate_selection_labels(y_val)
     if not weights or any(
         not np.isfinite(weight) or not 0 <= weight <= 1 for weight in weights
     ):
@@ -98,17 +99,21 @@ def grid_search(
     scores = ensemble._normalized_scores(X_val)
     results = []
     best_weight = weights[0]
-    best_pr_auc = -np.inf
+    best_roc_auc = -np.inf
     for weight in weights:
         combined = weight * scores[:, 0] + (1 - weight) * scores[:, 1]
+        roc_auc = roc_auc_score(y_val, combined)
         pr_auc = average_precision_score(y_val, combined)
-        results.append({"if_weight": weight, "ocsvm_weight": 1 - weight, "pr_auc": pr_auc})
-        if pr_auc > best_pr_auc:
-            best_pr_auc = pr_auc
+        results.append({
+            "if_weight": weight, "ocsvm_weight": 1 - weight,
+            "roc_auc": roc_auc, "pr_auc": pr_auc,
+        })
+        if roc_auc > best_roc_auc:
+            best_roc_auc = roc_auc
             best_weight = weight
 
     results_df = pd.DataFrame(results).sort_values(
-        "pr_auc", ascending=False, kind="stable"
+        "roc_auc", ascending=False, kind="stable"
     )
     ensemble.if_weight = best_weight
     return ensemble, results_df
