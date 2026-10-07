@@ -77,6 +77,8 @@ class IsolationForestDetector(AnomalyDetector):
         """
         validate_selection_labels(y_val)
         results = []
+        best_detector: IsolationForestDetector | None = None
+        best_roc_auc = -np.inf
         for params in ParameterGrid(param_grid):
             detector = cls(skewed_cols=skewed_cols, random_state=random_state, **params)
             detector.fit(X_train)
@@ -84,11 +86,11 @@ class IsolationForestDetector(AnomalyDetector):
             roc_auc = roc_auc_score(y_val, scores)
             pr_auc = average_precision_score(y_val, scores)
             results.append({**params, "roc_auc": roc_auc, "pr_auc": pr_auc})
+            if roc_auc > best_roc_auc:
+                best_roc_auc = roc_auc
+                best_detector = detector
 
         results_df = pd.DataFrame(results).sort_values(
             "roc_auc", ascending=False, kind="stable"
         )
-        best_params = {k: results_df.iloc[0][k] for k in param_grid}
-        best_detector = cls(skewed_cols=skewed_cols, random_state=random_state, **best_params)
-        best_detector.fit(X_train)
         return best_detector, results_df
