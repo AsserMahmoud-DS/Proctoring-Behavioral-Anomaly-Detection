@@ -78,3 +78,30 @@ def test_grid_search_roc_auc_ties_keep_first_candidate(model_name, monkeypatch):
 def test_grid_search_rejects_single_class_validation(model_name, labels, monkeypatch):
     with pytest.raises(ValueError, match="both normal"):
         run_search(model_name, monkeypatch, labels=labels)
+
+
+def test_if_grid_search_preserves_int_params_for_numeric_grid():
+    """Regression (BUG-1): deriving best params from a DataFrame row upcast
+    ``n_estimators`` to float and crashed IsolationForest. When every grid value
+    is numeric the selected detector must keep its original Python types."""
+    X_train = pd.DataFrame(
+        {"f0": np.arange(20, dtype=float), "f1": np.arange(20, 0, -1, dtype=float)}
+    )
+    X_val = pd.DataFrame(
+        {"f0": np.arange(20, 40, dtype=float), "f1": np.arange(20, 40, dtype=float)[::-1]}
+    )
+    y_val = np.array([0] * 10 + [1] * 10)
+
+    best, results = IsolationForestDetector.grid_search(
+        X_train,
+        X_val,
+        y_val,
+        [],
+        {"n_estimators": [10, 20], "max_samples": [0.8]},
+        random_state=0,
+    )
+
+    assert isinstance(best.n_estimators, (int, np.integer))
+    assert not isinstance(best.n_estimators, float)
+    assert {"roc_auc", "pr_auc"} <= set(results.columns)
+    assert best.decision_function(X_val).shape == (len(X_val),)
