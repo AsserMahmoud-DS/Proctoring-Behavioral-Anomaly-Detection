@@ -200,6 +200,7 @@ def _build_matrices(
 
     return {
         "X_train": X_train,
+        "X_val_normal": X_val_normal,
         "X_val": X_val,
         "y_val": y_val,
         "X_test": X_test,
@@ -248,7 +249,7 @@ def prepare_data(config: ExperimentConfig) -> dict:
 
     Returns:
         Dict with the processed DataFrames (post-merge), the session split,
-        and the model-ready matrices (``X_train``, ``X_val``, ``y_val``,
+        and the model-ready matrices (``X_train``, ``X_val_normal``, ``X_val``, ``y_val``,
         ``X_test``, ``y_test``, ``features_to_keep``).
     """
     _ensure_directories()
@@ -547,7 +548,12 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     )
 
     best_ensemble, ensemble_results = ensemble_grid_search(
-        best_if, best_ocsvm, X_val, y_val, config.ensemble_weights
+        best_if,
+        best_ocsvm,
+        X_val,
+        y_val,
+        config.ensemble_weights,
+        X_ref=data["X_val_normal"],
     )
 
     detectors = {"IF": best_if, "OCSVM": best_ocsvm, "Ensemble": best_ensemble}
