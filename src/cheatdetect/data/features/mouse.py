@@ -128,7 +128,8 @@ def extract_mouse_features(mouse_chunk: pd.DataFrame) -> dict:
 
     # Straightness: ratio of beeline distance to actual path length
     straightness = end_to_end_dist / path_length if path_length > 0 else 0.0
-    direction_changes = int((np.abs(chunk["angle"].diff()) > np.pi / 4).sum())
+    angle_changes = angle_diff.abs()
+    direction_changes = int((angle_changes > np.pi / 4).sum())
     click_count = int((chunk["Event Type"] == "click").sum())
 
     # Idle ratio: fraction of time spent at the 10th-percentile velocity
@@ -164,7 +165,6 @@ def extract_mouse_features(mouse_chunk: pd.DataFrame) -> dict:
         largest_deviation = 0.0
 
     # Sharp angles: count of inter-event angle changes exceeding threshold
-    angle_changes = np.abs(chunk["angle"].diff())
     sharp_angles = int((angle_changes > 0.0005).sum())
     sum_of_angles = _safe_agg(angle_changes, np.sum)
 
