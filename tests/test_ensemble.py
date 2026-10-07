@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 from cheatdetect.app.schemas import Event, InferenceConfig, PredictionRequest
 from cheatdetect.app.service import PredictionService
@@ -132,7 +132,10 @@ def test_grid_search_keeps_selected_models_and_tunes_on_validation(reference):
     assert best.ocsvm_detector is ocsvm_detector
     assert if_detector.fit_calls == ocsvm_detector.fit_calls == 0
     assert best.if_weight == 1.0
-    assert results["pr_auc"].is_monotonic_decreasing
+    assert results["roc_auc"].is_monotonic_decreasing
+    assert results.iloc[0]["roc_auc"] == roc_auc_score(
+        labels, best.decision_function(validation)
+    )
     assert results.iloc[0]["pr_auc"] == average_precision_score(
         labels, best.decision_function(validation)
     )
@@ -142,6 +145,39 @@ def test_grid_search_keeps_selected_models_and_tunes_on_validation(reference):
         X_ref=reference,
     )
     assert reversed_best.if_weight == 0.0
+
+
+def test_grid_search_prefers_roc_auc_when_pr_auc_disagrees(reference):
+    validation = pd.DataFrame({
+        "if_score": [1, 2, 3, 4, 0, 5],
+        "svm_score": [0, 1, 2, 5, 3, 4],
+    })
+    labels = np.array([0, 0, 0, 0, 1, 1])
+    best, results = grid_search(
+        ColumnDetector("if_score"), ColumnDetector("svm_score"),
+        validation, labels, (1.0, 0.0), X_ref=reference,
+    )
+    assert best.if_weight == 0.0
+    assert results["roc_auc"].is_monotonic_decreasing
+    assert results.iloc[0]["pr_auc"] < results.iloc[1]["pr_auc"]
+
+
+def test_grid_search_roc_auc_ties_keep_first_weight(reference):
+    validation = pd.DataFrame({"if_score": [0, 1, 3, 4], "svm_score": [0, 2, 6, 8]})
+    best, results = grid_search(
+        ColumnDetector("if_score"), ColumnDetector("svm_score"),
+        validation, np.array([0, 0, 1, 1]), (0.7, 0.3), X_ref=reference,
+    )
+    assert best.if_weight == results.iloc[0]["if_weight"] == 0.7
+
+
+@pytest.mark.parametrize("labels", [np.zeros(5), np.ones(5)])
+def test_grid_search_rejects_single_class_validation(reference, labels):
+    with pytest.raises(ValueError, match="both normal"):
+        grid_search(
+            ColumnDetector("if_score"), ColumnDetector("svm_score"),
+            reference, labels, (0.5,), X_ref=reference,
+        )
 
 
 @pytest.mark.parametrize("weights", [(), (-0.1,), (np.nan,)])

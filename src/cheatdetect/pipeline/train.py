@@ -13,7 +13,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 from cheatdetect.config import (
@@ -55,6 +55,7 @@ from cheatdetect.data import (
 )
 from cheatdetect.eval import compare_models, evaluate_model
 from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
+from cheatdetect.models.base import validate_selection_labels
 from cheatdetect.models.ensemble import grid_search as ensemble_grid_search
 
 logger = logging.getLogger(__name__)
@@ -520,6 +521,7 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     X_train = data["X_train"]
     X_val = data["X_val"]
     y_val = data["y_val"]
+    validate_selection_labels(y_val)
     X_test = data["X_test"]
     y_test = data["y_test"]
     features_to_keep = data["features_to_keep"]
@@ -572,9 +574,9 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         for name in detectors
     }
 
-    selection_metric = "pr_auc"
+    selection_metric = "roc_auc"
     selection_scores = {
-        name: average_precision_score(y_val, scores)
+        name: roc_auc_score(y_val, scores)
         for name, scores in val_scores.items()
     }
     best_name = max(selection_scores, key=selection_scores.get)
