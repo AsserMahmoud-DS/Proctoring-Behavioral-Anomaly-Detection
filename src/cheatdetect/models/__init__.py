@@ -12,7 +12,7 @@ of the API image. Import it explicitly where needed.
 from .base import AnomalyDetector
 from .isolation_forest import IsolationForestDetector
 from .ocsvm import OCSVMDetector
-from .ensemble import EnsembleDetector, normalize_scores
+from .ensemble import EnsembleDetector
 from .threshold import tune_threshold
 
 __all__ = [
@@ -20,6 +20,5 @@ __all__ = [
     "IsolationForestDetector",
     "OCSVMDetector",
     "EnsembleDetector",
-    "normalize_scores",
     "tune_threshold",
 ]
