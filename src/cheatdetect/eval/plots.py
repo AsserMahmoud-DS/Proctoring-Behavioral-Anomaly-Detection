@@ -8,6 +8,7 @@ afterward for inline display.
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from sklearn.metrics import average_precision_score, precision_recall_curve, roc_curve, auc
 
@@ -19,6 +20,11 @@ def plot_pr_curves(model_scores: dict, y_true, save_path: Path) -> None:
         prec, rec, _ = precision_recall_curve(y_true, scores)
         pr_auc = average_precision_score(y_true, scores)
         ax.plot(rec, prec, linewidth=2, label=f"{label} (AUC={pr_auc:.3f})")
+    baseline = float(np.mean(y_true))
+    ax.axhline(
+        baseline, color="black", linestyle="--", alpha=0.5,
+        label=f"Prevalence baseline ({baseline:.3f})",
+    )
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_title("PR Curves")

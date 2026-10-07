@@ -3,13 +3,12 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
-    auc,
     average_precision_score,
     confusion_matrix,
     f1_score,
     precision_score,
     recall_score,
-    roc_curve,
+    roc_auc_score,
 )
 
 
@@ -25,7 +24,7 @@ def evaluate_model(
         y_true: Binary ground-truth labels (1 = anomalous).
 
     Returns:
-        Dict with scalar metrics (``pr_auc``, ``roc_auc``, ``precision``,
+        Dict with scalar metrics (``pr_auc``, ``pr_auc_baseline``, ``roc_auc``, ``precision``,
         ``recall``, ``f1``, ``threshold``), confusion-matrix counts
         (``tp``, ``tn``, ``fp``, ``fn``), and the raw ``cm`` and ``scores``
         arrays for downstream plotting.
@@ -33,7 +32,7 @@ def evaluate_model(
     y_pred = (scores >= threshold).astype(int)
 
     pr_auc = average_precision_score(y_true, scores)
-    roc_auc = auc(*roc_curve(y_true, scores)[:2])
+    roc_auc = roc_auc_score(y_true, scores)
 
     prec = precision_score(y_true, y_pred, zero_division=0)
     rec = recall_score(y_true, y_pred, zero_division=0)
@@ -44,6 +43,7 @@ def evaluate_model(
     return {
         "model": name,
         "pr_auc": pr_auc,
+        "pr_auc_baseline": float(np.mean(y_true)),
         "roc_auc": roc_auc,
         "precision": prec,
         "recall": rec,
