@@ -14,6 +14,16 @@ def validate_selection_labels(y_val: np.ndarray) -> None:
         )
 
 
+def is_fitted_preprocessor(preprocessor) -> bool:
+    """True when a ``FeaturePreprocessor`` holds fit-time schema/statistics.
+
+    Detectors accept an already-fitted preprocessor from the study runner so
+    the frozen original-training statistics are reused instead of refit on
+    augmented or held-out inputs.
+    """
+    return hasattr(preprocessor, "output_features_")
+
+
 class AnomalyDetector(ABC):
     """Interface for all anomaly detectors.
 

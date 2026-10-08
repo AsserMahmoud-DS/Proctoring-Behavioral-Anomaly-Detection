@@ -15,6 +15,9 @@ from cheatdetect.config import ExperimentConfig
 from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
 from cheatdetect.models.base import validate_selection_labels
 from cheatdetect.models.ensemble import grid_search as ensemble_grid_search
+from cheatdetect.models.selection import sweep_candidates
+
+__all__ = ["search_validation", "search_lstm", "resolve_lstm_es", "sweep_candidates"]
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,8 @@ def search_validation(
         },
         random_state=config.random_state,
     )
+    if best_if is None:
+        raise ValueError("No Isolation Forest candidate could be fitted")
 
     best_ocsvm, ocsvm_results = OCSVMDetector.grid_search(
         X_train,
@@ -67,6 +72,8 @@ def search_validation(
         },
         random_state=config.random_state,
     )
+    if best_ocsvm is None:
+        raise ValueError("No One-Class SVM candidate could be fitted")
 
     best_ensemble, ensemble_results = ensemble_grid_search(
         best_if,
@@ -154,7 +161,7 @@ def search_lstm(config: ExperimentConfig, lstm_data: dict) -> dict:
         {
             "hidden_dim": list(config.lstm_hidden_dims),
             "num_layers": list(config.lstm_num_layers),
-            "dropout": list(config.lstm_dropouts),
+            "latent_dropout": list(config.lstm_dropouts),
             "lr": list(config.lstm_lrs),
             "batch_size": list(config.lstm_batch_sizes),
         },
@@ -167,6 +174,8 @@ def search_lstm(config: ExperimentConfig, lstm_data: dict) -> dict:
         },
         random_state=config.random_state,
     )
+    if best_detector is None:
+        raise ValueError("No LSTM autoencoder candidate could be fitted")
 
     val_scores = best_detector.decision_function(X_val)
     threshold = tune_threshold(

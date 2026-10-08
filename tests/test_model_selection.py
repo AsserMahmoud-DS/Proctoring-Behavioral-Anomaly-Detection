@@ -100,5 +100,6 @@ def test_if_grid_search_preserves_int_params_for_numeric_grid():
 
     assert isinstance(best.n_estimators, (int, np.integer))
     assert not isinstance(best.n_estimators, float)
-    assert {"roc_auc", "pr_auc"} <= set(results.columns)
+    assert {"roc_auc", "pr_auc", "pr_auc_baseline", "seconds"} <= set(results.columns)
+    assert results.iloc[0]["seconds"] >= 0
     assert best.decision_function(X_val).shape == (len(X_val),)

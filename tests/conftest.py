@@ -38,3 +38,21 @@ def make_clean_session():
         return clean_session_data(_raw_session(n_events, cheating, seed))
 
     return _make
+
+
+@pytest.fixture(scope="session")
+def tiny_study(tmp_path_factory):
+    """One shared tiny Experiment 1 study bundle for the runner/reporting tests.
+
+    Feature extraction dominates the build cost, so it runs once per session;
+    tests never mutate the prepared bundle.
+    """
+    from cheatdetect.data import dataset as data
+    from study_helpers import build_tiny_study
+
+    base = tmp_path_factory.mktemp("tiny_study")
+    original_root = data.ARTIFACT_ROOT
+    try:
+        yield build_tiny_study(base)
+    finally:
+        data.ARTIFACT_ROOT = original_root
