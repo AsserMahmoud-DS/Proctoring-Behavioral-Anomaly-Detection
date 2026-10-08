@@ -1,8 +1,15 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from cheatdetect.utils import _find_project_root
 
 _project_root = _find_project_root()
+
+# Source package locations, derived from this file so they are independent of
+# the current working directory.
+PACKAGE_DIR = Path(__file__).resolve().parent
+EXPERIMENTS_DIR = PACKAGE_DIR / "experiments"
+EXPERIMENT_1_DIR = EXPERIMENTS_DIR / "experiment_1"
 
 # Environment / deployment constants
 NORMAL_DIR = _project_root / "dataset/raw/pure normal"
@@ -30,6 +37,12 @@ LSTM_ES_PATH = PROCESSED_DIR / "lstm_es.npz"
 EDA_DIR = REPORTS_DIR / "eda"
 VAL_DIR = REPORTS_DIR / "val_results"
 TEST_DIR = REPORTS_DIR / "test_results"
+
+# Study/experiment artifacts. Kept separate from model and report directories so
+# experiment runs never overwrite the deployable winner.
+STUDY_DIR = _project_root / "study"
+STUDY_ARTIFACTS_DIR = STUDY_DIR / "artifacts"
+AUDIT_DIR = STUDY_ARTIFACTS_DIR / "phase_01_audit"
 
 
 @dataclass(frozen=True)

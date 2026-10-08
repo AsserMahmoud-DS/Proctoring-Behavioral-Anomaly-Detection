@@ -34,6 +34,20 @@ from .features import (
 )
 from .build import merge_window_switch_events
 from .transform import Log1pSkewed, find_skewed_features
+from .preprocessing import FeaturePreprocessor, gamma_center, validate_features
+from .paired import (
+    PairedRepresentation,
+    build_paired_representation,
+    extract_paired_features,
+    load_parent_sessions,
+)
+from .dataset import (
+    PreparedStudy,
+    input_manifest,
+    load_prepared,
+    prepare_study,
+    save_prepared,
+)
 from .augment import add_coordinate_noise, augment_session_data
 from .sequences import (
     align_sequence_features,
@@ -50,6 +64,18 @@ from .selection import (
 )
 
 __all__ = [
+    "FeaturePreprocessor",
+    "gamma_center",
+    "validate_features",
+    "PairedRepresentation",
+    "build_paired_representation",
+    "extract_paired_features",
+    "load_parent_sessions",
+    "PreparedStudy",
+    "prepare_study",
+    "save_prepared",
+    "load_prepared",
+    "input_manifest",
     "load_single_session",
     "load_sessions",
     "clean_session_data",
