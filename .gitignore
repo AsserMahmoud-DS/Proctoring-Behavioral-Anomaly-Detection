@@ -1,0 +1,17 @@
+__pycache__
+cheatdetect.egg-info
+context.md
+dataset/processed/
+dataset/raw/
+*.txt
+research_agent.md
+AGENTS.md
+plans/
+research/
+Supervised/
+src/*.json
+.vscode/
+notebooks/*.py
+old/
+report.md
+/study/
