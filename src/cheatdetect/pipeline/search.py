@@ -161,7 +161,7 @@ def search_lstm(config: ExperimentConfig, lstm_data: dict) -> dict:
         {
             "hidden_dim": list(config.lstm_hidden_dims),
             "num_layers": list(config.lstm_num_layers),
-            "dropout": list(config.lstm_dropouts),
+            "latent_dropout": list(config.lstm_dropouts),
             "lr": list(config.lstm_lrs),
             "batch_size": list(config.lstm_batch_sizes),
         },

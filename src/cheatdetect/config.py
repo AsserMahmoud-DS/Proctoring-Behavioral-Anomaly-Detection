@@ -75,6 +75,7 @@ class ExperimentConfig:
     lstm_sub_step: int = 5
     lstm_hidden_dims: tuple[int, ...] = (8, 16, 32)
     lstm_num_layers: tuple[int, ...] = (1, 2)
+    # Explicit latent dropout grid; built-in nn.LSTM dropout stays 0.
     lstm_dropouts: tuple[float, ...] = (0.1, 0.3)
     lstm_lrs: tuple[float, ...] = (1e-3, 5e-4, 1e-4)
     lstm_batch_sizes: tuple[int, ...] = (32, 64, 128)

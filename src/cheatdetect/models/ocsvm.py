@@ -1,5 +1,7 @@
 """One-Class SVM anomaly detector."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import ParameterGrid
@@ -12,6 +14,8 @@ from .base import AnomalyDetector, is_fitted_preprocessor
 from .selection import sweep_candidates
 
 OCSVM_RECIPES = ("base", "log", "yj", "quantile")
+
+logger = logging.getLogger(__name__)
 
 
 class OCSVMDetector(AnomalyDetector):
@@ -76,6 +80,26 @@ class OCSVMDetector(AnomalyDetector):
         # sklearn returns lower = more anomalous; negate for higher = anomalous.
         return -self.pipeline.decision_function(X)
 
+    def convergence_diagnostics(self) -> dict:
+        """Solver diagnostics for the fitted One-Class SVM.
+
+        ``fit_status_ == 0`` means the solver converged. Non-convergence is
+        reported (``converged=False`` plus a warning), never silently swapped
+        for another recipe.
+        """
+        model = self.pipeline.named_steps["model"]
+        if not hasattr(model, "fit_status_"):
+            return {"n_iter": None, "converged": None}
+        converged = bool(model.fit_status_ == 0)
+        if not converged:
+            logger.warning(
+                "One-Class SVM did not converge (nu=%s, gamma=%s, n_iter=%s)",
+                self.nu,
+                self.gamma,
+                model.n_iter_,
+            )
+        return {"n_iter": int(model.n_iter_), "converged": converged}
+
     @classmethod
     def grid_search(
         cls,
@@ -90,7 +114,9 @@ class OCSVMDetector(AnomalyDetector):
 
         See :meth:`IsolationForestDetector.grid_search` for parameter details.
         An injected ``preprocessor`` is reused fitted; only the estimator is
-        refit per candidate.
+        refit per candidate. Each row reports solver ``n_iter`` and whether the
+        fit ``converged`` (``fit_status_ == 0``); failures stay visible instead
+        of being replaced by another recipe.
         """
 
         def fit_and_score(params: dict):
@@ -98,6 +124,6 @@ class OCSVMDetector(AnomalyDetector):
                 random_state=random_state, preprocessor=preprocessor, **params
             )
             detector.fit(X_train)
-            return detector, detector.decision_function(X_val), {}
+            return detector, detector.decision_function(X_val), detector.convergence_diagnostics()
 
         return sweep_candidates(ParameterGrid(param_grid), fit_and_score, y_val)

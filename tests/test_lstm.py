@@ -24,7 +24,7 @@ def _detector(**overrides) -> LSTMAutoencoderDetector:
         seq_len=SEQ_LEN,
         hidden_dim=4,
         num_layers=1,
-        dropout=0.0,
+        latent_dropout=0.0,
         lr=1e-2,
         batch_size=8,
         epochs=2,
@@ -88,7 +88,7 @@ def test_grid_search_returns_sorted_results():
         param_grid={
             "hidden_dim": [4, 8],
             "num_layers": [1],
-            "dropout": [0.0],
+            "latent_dropout": [0.0],
             "lr": [1e-2],
             "batch_size": [8],
         },
@@ -104,7 +104,9 @@ def test_grid_search_returns_sorted_results():
     assert isinstance(best, LSTMAutoencoderDetector)
     assert len(results) == 2
     expected_columns = {
-        "hidden_dim", "num_layers", "dropout", "lr", "batch_size", "roc_auc", "pr_auc",
+        "hidden_dim", "num_layers", "latent_dropout", "lr", "batch_size",
+        "roc_auc", "pr_auc", "epochs_trained", "best_epoch",
+        "optimizer_updates", "best_es_loss",
     }
     assert expected_columns.issubset(results.columns)
     assert results["roc_auc"].is_monotonic_decreasing
