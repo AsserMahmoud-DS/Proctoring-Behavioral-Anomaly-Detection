@@ -17,13 +17,13 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from torch.utils.data import DataLoader, TensorDataset
 
 from cheatdetect.data import FeaturePreprocessor
 
-from .base import SequenceAnomalyDetector, validate_selection_labels
+from .base import SequenceAnomalyDetector, is_fitted_preprocessor
+from .selection import sweep_candidates
 
 LSTM_RECIPES = ("base", "log", "yj", "quantile")
 
@@ -184,6 +184,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         epochs: int = 100,
         patience: int = 10,
         random_state: int = 42,
+        preprocessor: FeaturePreprocessor | None = None,
     ):
         if recipe not in LSTM_RECIPES:
             raise ValueError(
@@ -201,8 +202,12 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         self.epochs = epochs
         self.patience = patience
         self.random_state = random_state
+        self.preprocessor = (
+            preprocessor
+            if preprocessor is not None
+            else FeaturePreprocessor(recipe, scale=True)
+        )
 
-        self.preprocessor = FeaturePreprocessor(recipe, scale=True)
         self.model: LSTMAutoencoder | None = None
 
     def _preprocess(self, X: np.ndarray, fit: bool) -> np.ndarray:
@@ -228,7 +233,10 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         torch.manual_seed(self.random_state)
         np.random.seed(self.random_state)
 
-        X_scaled = self._preprocess(X, fit=True)
+        # An injected preprocessor is already fitted on original training; the
+        # autoencoder is trained on (possibly augmented) transformed sequences.
+        frozen = is_fitted_preprocessor(self.preprocessor)
+        X_scaled = self._preprocess(X, fit=not frozen)
         X_es_scaled = None if X_es is None else self._preprocess(X_es, fit=False)
 
         self.model = LSTMAutoencoder(
@@ -262,7 +270,8 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         param_grid: dict,
         fixed_kwargs: dict | None = None,
         random_state: int = 42,
-    ) -> tuple["LSTMAutoencoderDetector", pd.DataFrame]:
+        preprocessor: FeaturePreprocessor | None = None,
+    ) -> tuple["LSTMAutoencoderDetector | None", pd.DataFrame]:
         """Search *param_grid* and return the best detector by validation ROC-AUC.
 
         Mirrors ``IsolationForestDetector.grid_search``. Gridded parameters
@@ -280,33 +289,23 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
             param_grid: Dict of constructor params → list of candidates.
             fixed_kwargs: Constructor params held constant across the grid.
             random_state: Seed for reproducibility.
+            preprocessor: Optional pre-fitted processor reused across candidates.
 
         Returns:
-            ``(best_detector, results_df)`` sorted by ROC-AUC, with PR-AUC reported.
+            ``(best_detector, results_df)`` sorted by ROC-AUC, with PR-AUC and
+            per-candidate status reported.
         """
-        validate_selection_labels(y_val)
         fixed_kwargs = dict(fixed_kwargs or {})
-        results = []
-        best_detector: LSTMAutoencoderDetector | None = None
-        best_roc_auc = -np.inf
 
-        for params in ParameterGrid(param_grid):
+        def fit_and_score(params: dict):
             detector = cls(
                 feature_names=feature_names,
                 random_state=random_state,
+                preprocessor=preprocessor,
                 **fixed_kwargs,
                 **params,
             )
             detector.fit(X_train, X_es=X_es)
-            scores = detector.decision_function(X_val)
-            roc_auc = roc_auc_score(y_val, scores)
-            pr_auc = average_precision_score(y_val, scores)
-            results.append({**params, "roc_auc": roc_auc, "pr_auc": pr_auc})
-            if roc_auc > best_roc_auc:
-                best_roc_auc = roc_auc
-                best_detector = detector
+            return detector, detector.decision_function(X_val), {}
 
-        results_df = pd.DataFrame(results).sort_values(
-            "roc_auc", ascending=False, kind="stable"
-        )
-        return best_detector, results_df
+        return sweep_candidates(ParameterGrid(param_grid), fit_and_score, y_val)

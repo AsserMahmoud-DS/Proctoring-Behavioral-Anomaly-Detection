@@ -3,13 +3,13 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 
 from cheatdetect.data import FeaturePreprocessor
 
-from .base import AnomalyDetector, validate_selection_labels
+from .base import AnomalyDetector, is_fitted_preprocessor
+from .selection import sweep_candidates
 
 IF_RECIPES = ("base", "log")
 
@@ -30,6 +30,7 @@ class IsolationForestDetector(AnomalyDetector):
         max_features: float = 1.0,
         contamination: float = 0.1,
         random_state: int = 42,
+        preprocessor: FeaturePreprocessor | None = None,
     ):
         if recipe not in IF_RECIPES:
             raise ValueError(
@@ -41,10 +42,15 @@ class IsolationForestDetector(AnomalyDetector):
         self.max_features = max_features
         self.contamination = contamination
         self.random_state = random_state
+        self.preprocessor = (
+            preprocessor
+            if preprocessor is not None
+            else FeaturePreprocessor(recipe, scale=False)
+        )
 
         self.pipeline = Pipeline(
             [
-                ("preprocess", FeaturePreprocessor(recipe, scale=False)),
+                ("preprocess", self.preprocessor),
                 (
                     "model",
                     IsolationForest(
@@ -60,7 +66,13 @@ class IsolationForestDetector(AnomalyDetector):
         )
 
     def fit(self, X: pd.DataFrame) -> "IsolationForestDetector":
-        self.pipeline.fit(X)
+        # An injected preprocessor is already fitted on original training; only
+        # the estimator is trained on (possibly augmented) raw rows.
+        if is_fitted_preprocessor(self.preprocessor):
+            transformed = self.preprocessor.transform(X)
+            self.pipeline.named_steps["model"].fit(transformed)
+        else:
+            self.pipeline.fit(X)
         return self
 
     def decision_function(self, X: pd.DataFrame) -> np.ndarray:
@@ -75,7 +87,8 @@ class IsolationForestDetector(AnomalyDetector):
         y_val: np.ndarray,
         param_grid: dict,
         random_state: int = 42,
-    ) -> tuple["IsolationForestDetector", pd.DataFrame]:
+        preprocessor: FeaturePreprocessor | None = None,
+    ) -> tuple["IsolationForestDetector | None", pd.DataFrame]:
         """Search *param_grid* and return the best detector by validation ROC-AUC.
 
         Args:
@@ -83,26 +96,20 @@ class IsolationForestDetector(AnomalyDetector):
             y_val: binary labels (1 = anomalous).
             param_grid: dict of constructor params → list of candidates.
             random_state: seed for reproducibility.
+            preprocessor: optional pre-fitted processor; when given, the
+                original-training statistics are frozen and only the estimator
+                is refit per candidate.
 
         Returns:
-            ``(best_detector, results_df)`` sorted by ROC-AUC, with PR-AUC reported.
+            ``(best_detector, results_df)`` sorted by ROC-AUC, with PR-AUC and
+            per-candidate status reported.
         """
-        validate_selection_labels(y_val)
-        results = []
-        best_detector: IsolationForestDetector | None = None
-        best_roc_auc = -np.inf
-        for params in ParameterGrid(param_grid):
-            detector = cls(random_state=random_state, **params)
-            detector.fit(X_train)
-            scores = detector.decision_function(X_val)
-            roc_auc = roc_auc_score(y_val, scores)
-            pr_auc = average_precision_score(y_val, scores)
-            results.append({**params, "roc_auc": roc_auc, "pr_auc": pr_auc})
-            if roc_auc > best_roc_auc:
-                best_roc_auc = roc_auc
-                best_detector = detector
 
-        results_df = pd.DataFrame(results).sort_values(
-            "roc_auc", ascending=False, kind="stable"
-        )
-        return best_detector, results_df
+        def fit_and_score(params: dict):
+            detector = cls(
+                random_state=random_state, preprocessor=preprocessor, **params
+            )
+            detector.fit(X_train)
+            return detector, detector.decision_function(X_val), {}
+
+        return sweep_candidates(ParameterGrid(param_grid), fit_and_score, y_val)
