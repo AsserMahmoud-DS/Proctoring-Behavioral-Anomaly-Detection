@@ -10,73 +10,14 @@ import pandas as pd
 import pytest
 
 import cheatdetect.experiments.experiment_1.runner as runner
-from cheatdetect.data import dataset as data
 from cheatdetect.data.feature_schema import SOURCE_FEATURES
-from cheatdetect.experiments.experiment_1.config import StudyConfig
 
-
-def raw_session(seed=42, cheating=False, n_events=75):
-    rng = np.random.default_rng(seed)
-    coordinates = 100 + np.cumsum(rng.normal(0, 2, (n_events, 2)), axis=0)
-    return pd.DataFrame({
-        "Time (seconds)": np.arange(n_events) * 0.1,
-        "Event Type": np.where(np.arange(n_events) % 2, "keydown", "mousemove"),
-        "X Coordinate": coordinates[:, 0], "Y Coordinate": coordinates[:, 1],
-        "Action": "", "Is Cheating": cheating,
-    })
-
-
-def tiny_config(**overrides) -> StudyConfig:
-    base = dict(
-        chunk_size=20,
-        step_size=10,
-        sub_chunk=5,
-        sub_step=5,
-        lstm_epochs=2,
-        lstm_patience=1,
-    )
-    base.update(overrides)
-    return dataclasses.replace(StudyConfig(), **base)
+from study_helpers import AE_CANDIDATES, IF_CANDIDATES, OCSVM_CANDIDATES
 
 
 @pytest.fixture
-def study_env(tmp_path, monkeypatch):
-    monkeypatch.setattr(data, "ARTIFACT_ROOT", tmp_path / "artifacts")
-    normal = tmp_path / "normal"
-    mixed = tmp_path / "mixed"
-    normal.mkdir()
-    mixed.mkdir()
-    split = {
-        "normal_train": ["train.csv"],
-        "normal_val": ["normal_val.csv"],
-        "mixed_val": ["mixed_val.csv"],
-        "mixed_test": ["test.csv"],
-    }
-    for index, (key, names) in enumerate(split.items()):
-        directory = normal if key.startswith("normal") else mixed
-        raw_session(index, key == "mixed_val").to_csv(directory / names[0], index=False)
-    config = tiny_config()
-    study = runner.build_study(
-        config,
-        split=split,
-        normal_dir=normal,
-        mixed_dir=mixed,
-        output_dir=tmp_path / "artifacts" / "phase_03_study",
-    )
-    return study, config, split, normal, mixed, tmp_path
-
-
-IF_CANDIDATES = [
-    {"recipe": "IF-raw", "n_estimators": 5, "max_samples": 5, "max_features": 1.0,
-     "contamination": "auto"},
-]
-OCSVM_CANDIDATES = [
-    {"recipe": "SVM-base", "nu": 0.5, "gamma": 0.1, "kernel": "rbf",
-     "tol": 1e-3, "max_iter": -1},
-]
-AE_CANDIDATES = [
-    {"recipe": "AE-base", "hidden_dim": 4, "num_layers": 1, "batch_size": 4, "lr": 1e-2},
-]
+def study_env(tiny_study):
+    return tiny_study
 
 
 def run_tiny(study_env, candidates, output_name="phase_04_study"):
@@ -105,7 +46,9 @@ def test_run_search_locks_recipe_winners_and_ensembles(study_env):
     assert run.manifest["frozen"] is True
     assert (run.directory / "candidates.csv").is_file()
     assert (run.directory / "reporting_manifest.json").is_file()
-    assert {"n_iter", "converged"} <= set(run.candidates.columns)
+    assert {"n_iter", "converged", "seconds", "pr_auc_baseline"} <= set(
+        run.candidates.columns
+    )
 
     for winner in list(run.winners.values()) + list(run.ensembles.values()):
         assert winner.artifact.is_file()
