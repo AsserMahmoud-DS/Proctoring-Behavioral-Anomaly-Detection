@@ -257,7 +257,11 @@ def _evaluator(
                 **params,
             )
             detector.fit(views.flat_train)
-            return detector, detector.decision_function(views.flat_val), {}
+            return (
+                detector,
+                detector.decision_function(views.flat_val),
+                detector.convergence_diagnostics(),
+            )
         if family == "ae":
             # Lazy import keeps torch out of phases that do not run the AE.
             from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
@@ -268,14 +272,24 @@ def _evaluator(
                 seq_len=views.sequence_train.shape[1],
                 recipe=processor_recipe,
                 preprocessor=frozen,
-                dropout=config.lstm_latent_dropout,
+                latent_dropout=config.lstm_latent_dropout,
+                lstm_dropout=config.lstm_dropout,
+                weight_decay=config.lstm_weight_decay,
+                min_improvement=config.lstm_min_improvement,
+                grad_clip=config.lstm_grad_clip,
                 epochs=config.lstm_epochs,
                 patience=config.lstm_patience,
                 random_state=config.main_seed,
                 **params,
             )
             detector.fit(views.sequence_train, X_es=views.sequence_val_normal)
-            return detector, detector.decision_function(views.sequence_val), {}
+            diagnostics = {
+                "epochs_trained": detector.model.epochs_trained,
+                "best_epoch": detector.model.best_epoch,
+                "optimizer_updates": detector.model.optimizer_updates,
+                "best_es_loss": detector.model.best_es_loss,
+            }
+            return detector, detector.decision_function(views.sequence_val), diagnostics
         raise ValueError(f"Unknown model family '{family}'")
 
     return evaluate

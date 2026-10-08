@@ -105,6 +105,7 @@ def test_run_search_locks_recipe_winners_and_ensembles(study_env):
     assert run.manifest["frozen"] is True
     assert (run.directory / "candidates.csv").is_file()
     assert (run.directory / "reporting_manifest.json").is_file()
+    assert {"n_iter", "converged"} <= set(run.candidates.columns)
 
     for winner in list(run.winners.values()) + list(run.ensembles.values()):
         assert winner.artifact.is_file()
@@ -187,8 +188,13 @@ def test_ae_candidates_train_and_are_locked(study_env):
     run = run_tiny(study_env, {"ae": AE_CANDIDATES})
     assert len(run.winners) == 2
     assert len(run.ensembles) == 0
+    assert {"epochs_trained", "best_epoch", "optimizer_updates"} <= set(
+        run.candidates.columns
+    )
     for winner in run.winners.values():
         assert winner.detector.model.epochs_trained <= 2
+        assert winner.detector.latent_dropout == 0.1
+        assert winner.detector.lstm_dropout == 0.0
 
 
 def test_runner_rejects_outputs_outside_study_artifacts(study_env):
