@@ -74,6 +74,27 @@ Events are chunked by count (configurable, default: 50 events per window, slidin
 
 ## Quick Start
 
+### Shared data preparation
+
+Reusable behavioral preprocessing and aligned extraction are available from
+`cheatdetect.data`:
+
+- `FeaturePreprocessor`: original-training median imputation, selective
+  base/log/Yeo–Johnson/quantile transforms, block scaling, and fixed direction
+  encoding. Fit on original normal training once, then reuse for synthetic and
+  held-out inputs. The fixed 25-source-feature schema produces 33 encoded columns.
+- `build_paired_representation` / `extract_paired_features`: parent aggregates
+  and micro-feature sequences extracted from the same realized original/noisy
+  window, with configurable geometry and stable parent/copy identities.
+- `load_parent_sessions`: ordered loading with explicit zero-window exclusion
+  reports; fails if a required partition has no usable windows.
+
+These implementations and their regression tests are tracked. Local study
+orchestration imports them; no production module imports `study/`. Existing
+`train_pipeline` defaults and saved deployed models are not automatically replaced
+by an experimental recipe. Model-specific wiring and recipe selection remain
+separate from reusable data preparation.
+
 ```bash
 # Setup
 uv venv cheatdetect
@@ -158,8 +179,11 @@ Tests are organized bottom-up by layer:
 |------|-------|-------|
 | `test_schema.py` | Data contracts | 12 |
 | `test_buffer.py` | Windowing logic | 4 |
-| `test_service.py` | Inference orchestration | 5 |
+| `test_service.py` | Inference orchestration | 6 |
 | `test_api.py` | HTTP transport | 4 |
+| `test_preprocessing.py` | Fitted feature preprocessing | 20 |
+| `test_paired.py` | Aligned extraction and session loading | 14 |
+| `test_mouse_features.py` | Circular turn-angle regression | 8 |
 
 ## Tech Stack
 
