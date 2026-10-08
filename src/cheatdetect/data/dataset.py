@@ -38,6 +38,15 @@ ARTIFACT_ROOT = STUDY_ARTIFACTS_DIR
 PARTITIONS = ("train_original", "train_synthetic", "normal_val", "mixed_val", "mixed_test")
 SPLIT_KEYS = ("normal_train", "normal_val", "mixed_val", "mixed_test")
 
+# Frozen recipe catalog: (name, FeaturePreprocessor recipe, scale). Phases 4-5
+# compare these nine; production selects only the ones it needs.
+RECIPES = (
+    ("IF-raw", "base", False), ("IF-log", "log", False),
+    ("SVM-base", "base", True), ("SVM-log", "log", True),
+    ("SVM-YJ", "yj", True), ("SVM-quantile", "quantile", True),
+    ("AE-base", "base", True), ("AE-log", "log", True), ("AE-YJ", "yj", True),
+)
+
 
 @dataclass
 class PreparedStudy:
@@ -57,6 +66,30 @@ class PreparedStudy:
             return pd.concat([original, synthetic], ignore_index=True)
         return np.concatenate([original, synthetic], axis=0)
 
+    def training_raw(self, augmented: bool) -> pd.DataFrame:
+        """Raw parent features for production (detectors own preprocessing)."""
+        original = self.raw["train_original"].parent
+        if not augmented:
+            return original
+        return pd.concat(
+            [original, self.raw["train_synthetic"].parent], ignore_index=True
+        )
+
+    def training_sequences(self, augmented: bool) -> np.ndarray:
+        """Raw micro-chunk sequences aligned 1:1 with ``training_raw``."""
+        original = self.raw["train_original"].sequences
+        if not augmented:
+            return original
+        return np.concatenate(
+            [original, self.raw["train_synthetic"].sequences], axis=0
+        )
+
+    def training_labels(self, augmented: bool) -> np.ndarray:
+        original = self.raw["train_original"].labels
+        if not augmented:
+            return original
+        return np.concatenate([original, self.raw["train_synthetic"].labels])
+
     def training_identities(self, augmented: bool) -> pd.DataFrame:
         original = self.raw["train_original"].identities
         if not augmented:
@@ -67,6 +100,8 @@ class PreparedStudy:
 def input_manifest(
     split: dict, normal_dir: Path, mixed_dir: Path,
     n_copies: int = 2, sigma_range: tuple[float, float] = (2.0, 5.0),
+    chunk_size: int = 50, step_size: int = 25, sub_chunk: int = 10,
+    sub_step: int = 5, label_fraction: float = 0.5, random_state: int = 42,
 ) -> dict:
     if any(not split.get(key) for key in SPLIT_KEYS):
         raise ValueError("All frozen study splits must contain session files")
@@ -96,10 +131,11 @@ def input_manifest(
     return {
         "version": 2, "split": {key: list(split[key]) for key in SPLIT_KEYS},
         "file_hashes": files, "source_features": list(SOURCE_FEATURES),
-        "parent_events": 50, "parent_stride": 25, "micro_events": 10,
-        "micro_stride": 5, "label_fraction": 0.5,
+        "parent_events": chunk_size, "parent_stride": step_size,
+        "micro_events": sub_chunk, "micro_stride": sub_step,
+        "label_fraction": label_fraction,
         "augmentation": {"copies": n_copies, "sigma_range": list(sigma_range),
-                         "seed": 42, "screen_bounds": [1920, 1080]},
+                         "seed": random_state, "screen_bounds": [1920, 1080]},
         "source_hashes": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in source_files},
         "versions": {"numpy": np.__version__, "pandas": pd.__version__, "sklearn": sklearn.__version__},
     }
@@ -108,37 +144,63 @@ def input_manifest(
 def prepare_study(
     split: dict | None = None, normal_dir: Path = NORMAL_DIR, mixed_dir: Path = MIXED_DIR,
     n_copies: int = 2, sigma_range: tuple[float, float] = (2.0, 5.0),
+    chunk_size: int = 50, step_size: int = 25, sub_chunk: int = 10, sub_step: int = 5,
+    label_fraction: float = 0.5, recipes: tuple[str, ...] | None = None,
+    random_state: int = 42,
 ) -> PreparedStudy:
-    """Build fresh data and fit each recipe once; never fit on synthetic/held-out rows."""
+    """Build fresh data and fit each selected recipe once.
+
+    Recipes are fitted on original normal training only, never on synthetic or
+    held-out rows. Production passes ``recipes=()`` because detectors own their
+    preprocessing; the study runner selects from :data:`RECIPES`.
+    """
     if split is None:
         split = json.loads((AUDIT_DIR / "manifest.json").read_text())["split"]
         frozen_hashes = pd.read_csv(AUDIT_DIR / "sessions.csv").set_index("session_file")["sha256"]
         for name in split["normal_train"]:
             if hashlib.sha256((normal_dir / name).read_bytes()).hexdigest() != frozen_hashes[name]:
                 raise ValueError("Original training contents changed since the frozen Phase 1 audit")
-    manifest = input_manifest(split, normal_dir, mixed_dir, n_copies, sigma_range)
+    manifest = input_manifest(
+        split, normal_dir, mixed_dir, n_copies, sigma_range,
+        chunk_size, step_size, sub_chunk, sub_step, label_fraction, random_state,
+    )
+    geometry = {
+        "chunk_size": chunk_size, "step_size": step_size,
+        "sub_chunk": sub_chunk, "sub_step": sub_step,
+    }
     loaded, session_reports = {}, []
     for key in SPLIT_KEYS:
         directory = normal_dir if key.startswith("normal") else mixed_dir
         loaded[key], report = load_parent_sessions(
             [directory / name for name in split[key]], partition=key,
             normal_only=key.startswith("normal"),
+            chunk_size=chunk_size, step_size=step_size,
         )
         session_reports.append(report)
     raw = {
-        "train_original": build_representation(loaded["normal_train"]),
-        "train_synthetic": build_representation(loaded["normal_train"], True, n_copies, sigma_range),
-        **{key: build_representation(loaded[key]) for key in SPLIT_KEYS[1:]},
+        "train_original": build_representation(
+            loaded["normal_train"], cheating_threshold=label_fraction, **geometry
+        ),
+        "train_synthetic": build_representation(
+            loaded["normal_train"], True, n_copies, sigma_range,
+            random_state=random_state, cheating_threshold=label_fraction, **geometry,
+        ),
+        **{
+            key: build_representation(
+                loaded[key], cheating_threshold=label_fraction, **geometry
+            )
+            for key in SPLIT_KEYS[1:]
+        },
     }
     preprocessors, transformed, centers = {}, {}, {}
-    for name, recipe, scale in (
-        ("IF-raw", "base", False), ("IF-log", "log", False),
-        ("SVM-base", "base", True), ("SVM-log", "log", True),
-        ("SVM-YJ", "yj", True), ("SVM-quantile", "quantile", True),
-        ("AE-base", "base", True), ("AE-log", "log", True), ("AE-YJ", "yj", True),
-    ):
+    for name, recipe, scale in RECIPES:
+        if recipes is not None and name not in recipes:
+            continue
         original = raw["train_original"]
-        fit_frame = pd.DataFrame(original.sequences.reshape(-1, 25), columns=SOURCE_FEATURES) if name.startswith("AE-") else original.parent
+        fit_frame = pd.DataFrame(
+            original.sequences.reshape(-1, len(SOURCE_FEATURES)),
+            columns=SOURCE_FEATURES,
+        ) if name.startswith("AE-") else original.parent
         processor = FeaturePreprocessor(recipe, scale).fit(fit_frame)
         preprocessors[name] = processor
         transformed[name] = {

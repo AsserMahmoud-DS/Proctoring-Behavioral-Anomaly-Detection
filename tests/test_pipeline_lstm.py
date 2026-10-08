@@ -41,17 +41,7 @@ def _patch_paths(monkeypatch, base):
         "EDA_DIR": base / "reports" / "eda",
         "VAL_DIR": base / "reports" / "val",
         "TEST_DIR": base / "reports" / "test",
-        "TRAIN_NORMAL_PATH": base / "processed" / "train_normal.pkl",
-        "VAL_NORMAL_PATH": base / "processed" / "val_normal.pkl",
-        "VAL_MIXED_PATH": base / "processed" / "val_mixed.pkl",
-        "TEST_MIXED_PATH": base / "processed" / "test_mixed.pkl",
         "SPLIT_INFO_PATH": base / "processed" / "split_info.json",
-        "TRAIN_AUGMENTED_PATH": base / "processed" / "train_augmented.pkl",
-        "FEATURE_LISTS_PATH": base / "processed" / "feature_lists.json",
-        "LSTM_TRAIN_PATH": base / "processed" / "lstm_train.npz",
-        "LSTM_VAL_PATH": base / "processed" / "lstm_val.npz",
-        "LSTM_ES_PATH": base / "processed" / "lstm_es.npz",
-        "LSTM_TEST_PATH": base / "processed" / "lstm_test.npz",
     }.items():
         monkeypatch.setattr(tr, name, value)
 
@@ -87,7 +77,7 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
     )
 
     data = tr.prepare_data(config)
-    lstm = tr.prepare_lstm_data(config, data, data["features_to_keep"])
+    lstm = tr.prepare_lstm_data(config, data)
 
     pd.testing.assert_frame_equal(
         data["X_val_normal"].reset_index(drop=True),

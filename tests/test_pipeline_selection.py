@@ -85,7 +85,7 @@ def test_winner_uses_validation_and_excludes_lstm(
 
     monkeypatch.setattr(tr, "evaluate_model", evaluate_after_selection)
 
-    def research_lstm(config, prepared, features):
+    def research_lstm(config, prepared):
         assert prepared is data
         saved = json.loads((tmp_path / "model_config.json").read_text())
         assert saved["model"] == expected_winner
