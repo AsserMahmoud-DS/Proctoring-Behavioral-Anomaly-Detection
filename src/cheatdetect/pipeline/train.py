@@ -199,20 +199,23 @@ def _serialize_model(
     best_detector,
     best_name: str,
     best_threshold: float,
-    features_to_keep: list[str],
     config: ExperimentConfig,
     pr_auc_test: float,
     *,
     selection_metric: str,
     selection_score_val: float,
 ) -> None:
-    """Persist the best detector and the inference-ready config."""
+    """Persist the best detector and the inference-ready config.
+
+    The detector artifact is self-contained (preprocessing included), so the
+    config carries no dynamic feature list; the app always feeds the frozen
+    25-feature source schema.
+    """
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(best_detector, MODELS_DIR / "best_model.joblib")
 
     model_config = {
         "model": best_name,
-        "features_to_keep": features_to_keep,
         "threshold": float(best_threshold),
         "chunk_size": config.chunk_size,
         "step_size": config.step_size,
@@ -260,7 +263,6 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         search["best_detector"],
         best_name,
         search["best_threshold"],
-        features_to_keep,
         config,
         next(result["pr_auc"] for result in flat_test_results if result["model"] == best_name),
         selection_metric=search["selection_metric"],

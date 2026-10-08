@@ -2,6 +2,7 @@ from .schemas import PredictionRequest, PredictionResponse, InferenceConfig, Chu
 from .buffer import WindowBuffer
 from cheatdetect.models import AnomalyDetector
 from cheatdetect.data import clean_session_data, merge_window_switch_events, extract_features_from_chunk
+from cheatdetect.data.feature_schema import SOURCE_FEATURES
 import pandas as pd
 
 COLUMN_MAP = {
@@ -39,7 +40,9 @@ class PredictionService:
             feature_rows.append(new_features)
 
         X_all = merge_window_switch_events(pd.DataFrame(feature_rows))
-        X = X_all[self._config.features_to_keep]
+        # Detectors own preprocessing (FeaturePreprocessor inside the artifact);
+        # the service only guarantees the frozen 25-feature source schema.
+        X = X_all[list(SOURCE_FEATURES)]
         scores = self._detector.decision_function(X)
 
         for i, score in enumerate(scores):

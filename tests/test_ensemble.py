@@ -208,7 +208,7 @@ def test_prediction_service_preserves_single_window_score(tmp_path):
     joblib.dump(detector, artifact)
     config = InferenceConfig(
         model="Ensemble", chunk_size=4, step_size=2, cheating_threshold=0.5,
-        threshold=0.25, features_to_keep=["elapsed_time"],
+        threshold=0.25,
     )
     events = [
         Event(time=float(index), event_type="mousemove", x=float(index), y=float(index))

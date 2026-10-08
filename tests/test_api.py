@@ -17,13 +17,6 @@ def fake_get_predictor():
             step_size=2,
             cheating_threshold=0.5,
             threshold=0.0,
-            features_to_keep=[
-                "elapsed_time",
-                "mouse_path_length",
-                "mouse_click_count",
-                "keyboard_typing_rate",
-                "window_switch_events",
-            ],
         ),
     )
 
