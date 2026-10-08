@@ -12,6 +12,7 @@ experiment runner can share it without importing each other.
 """
 
 import logging
+import time
 from collections.abc import Callable, Iterable
 
 import numpy as np
@@ -40,16 +41,18 @@ def sweep_candidates(
     Returns:
         ``(best_detector, results_df)`` where ``results_df`` is sorted by
         descending ROC-AUC (stable) and carries ``roc_auc``, ``pr_auc``,
-        ``status``, and ``error`` columns. ``best_detector`` is ``None`` when
-        no candidate could be fitted.
+        ``pr_auc_baseline``, ``seconds``, ``status``, and ``error`` columns.
+        ``best_detector`` is ``None`` when no candidate could be fitted.
     """
     validate_selection_labels(y_val)
 
     rows: list[dict] = []
+    baseline = float(np.mean(y_val))
     best_detector: object | None = None
     best_score = -np.inf
     for candidate in candidates:
-        row = dict(candidate)
+        row = {**candidate, "pr_auc_baseline": baseline}
+        start = time.perf_counter()
         try:
             fitted, scores, diagnostics = fit_and_score(candidate)
         except Exception as exc:  # keep searching; the failure must stay visible
@@ -59,6 +62,7 @@ def sweep_candidates(
                 {
                     "roc_auc": np.nan,
                     "pr_auc": np.nan,
+                    "seconds": time.perf_counter() - start,
                     "status": "failed",
                     "error": message,
                 }
@@ -72,6 +76,7 @@ def sweep_candidates(
             {
                 "roc_auc": roc_auc,
                 "pr_auc": average_precision_score(y_val, scores),
+                "seconds": time.perf_counter() - start,
                 "status": "ok",
                 "error": "",
             }
