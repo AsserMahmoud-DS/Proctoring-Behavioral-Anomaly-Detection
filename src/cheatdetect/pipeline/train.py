@@ -1,8 +1,8 @@
 """End-to-end training orchestration.
 
 ``train_pipeline`` runs the full experiment: session split, paired data
-construction, model grid search, threshold tuning, and final evaluation — then
-serializes the best detector plus an inference-ready config. The
+construction, validation-only model search, held-out test reporting, and
+serialization of the best detector plus an inference-ready config. The
 manifest-guarded builder in ``cheatdetect.data.dataset`` is the single source of
 truth; no pickle/npz caches are involved.
 """
@@ -13,7 +13,6 @@ import logging
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 from cheatdetect.config import (
@@ -30,10 +29,9 @@ from cheatdetect.config import (
 )
 from cheatdetect.data import prepare_study
 from cheatdetect.data.feature_schema import SOURCE_FEATURES
-from cheatdetect.eval import compare_models, evaluate_model
-from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
-from cheatdetect.models.base import validate_selection_labels
-from cheatdetect.models.ensemble import grid_search as ensemble_grid_search
+
+from .report import evaluate_detectors, evaluate_scores, summarize
+from .search import search_lstm, search_validation
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +181,20 @@ def prepare_lstm_data(config: ExperimentConfig, data: dict) -> dict:
     }
 
 
+def _assert_lstm_alignment(lstm_data: dict, data: dict) -> None:
+    """The LSTM samples must map 1:1 onto the flat chunks for a fair comparison."""
+    for key in ("val", "test"):
+        lstm_labels = lstm_data[f"y_{key}"]
+        flat_labels = data[f"y_{key}"]
+        if len(lstm_labels) != len(flat_labels) or not np.array_equal(
+            lstm_labels, flat_labels
+        ):
+            raise ValueError(
+                f"LSTM {key} labels are not aligned with the flat pipeline; "
+                "the sequence extraction order/count drifted."
+            )
+
+
 def _serialize_model(
     best_detector,
     best_name: str,
@@ -214,90 +226,6 @@ def _serialize_model(
         json.dump(model_config, f, indent=2)
 
 
-def _resolve_lstm_es(config: ExperimentConfig, lstm_data: dict) -> np.ndarray | None:
-    """Select the sequence set used for early stopping.
-
-    ``normal_val`` (default) uses held-out pure-normal sequences, which match
-    the training distribution. ``mixed_val`` reproduces the old behavior
-    (normal + anomalies). ``none`` disables early stopping.
-    """
-    source = config.lstm_es_source
-    if source == "none":
-        return None
-    if source == "normal_val":
-        if lstm_data["y_es"].any():
-            raise ValueError("LSTM early-stopping set must contain only normals")
-        return lstm_data["X_es"]
-    if source == "mixed_val":
-        return lstm_data["X_val"]
-    raise ValueError(
-        f"Unknown lstm_es_source '{source}'; expected normal_val, mixed_val, none"
-    )
-
-
-def _run_lstm(
-    config: ExperimentConfig,
-    data: dict,
-) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
-    """Train the research-only LSTM AE and return its val/test scores.
-
-    The detector is imported lazily so importing the pipeline does not
-    require torch (a dev-only dependency).
-    """
-    from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
-
-    lstm_data = prepare_lstm_data(config, data)
-    X_train = lstm_data["X_train"]
-    X_val = lstm_data["X_val"]
-    y_val = lstm_data["y_val"]
-    X_test = lstm_data["X_test"]
-    y_test = lstm_data["y_test"]
-    X_es = _resolve_lstm_es(config, lstm_data)
-
-    # The LSTM samples must map 1:1 onto the flat chunks for a fair comparison.
-    if len(y_val) != len(data["y_val"]) or not np.array_equal(y_val, data["y_val"]):
-        raise ValueError(
-            "LSTM validation labels are not aligned with the flat pipeline; "
-            "the sequence extraction order/count drifted."
-        )
-    if len(y_test) != len(data["y_test"]) or not np.array_equal(
-        y_test, data["y_test"]
-    ):
-        raise ValueError(
-            "LSTM test labels are not aligned with the flat pipeline; "
-            "the sequence extraction order/count drifted."
-        )
-
-    best_detector, grid_results = LSTMAutoencoderDetector.grid_search(
-        X_train,
-        X_val,
-        y_val,
-        X_es,
-        lstm_data["feature_names"],
-        {
-            "hidden_dim": list(config.lstm_hidden_dims),
-            "num_layers": list(config.lstm_num_layers),
-            "dropout": list(config.lstm_dropouts),
-            "lr": list(config.lstm_lrs),
-            "batch_size": list(config.lstm_batch_sizes),
-        },
-        fixed_kwargs={
-            "input_dim": X_train.shape[2],
-            "seq_len": lstm_data["seq_len"],
-            "epochs": config.lstm_epochs,
-            "patience": config.lstm_patience,
-            "recipe": config.lstm_recipe,
-        },
-        random_state=config.random_state,
-    )
-
-    return (
-        best_detector.decision_function(X_val),
-        best_detector.decision_function(X_test),
-        grid_results,
-    )
-
-
 def train_pipeline(config: ExperimentConfig) -> dict:
     """Run the full experiment and return the results dict.
 
@@ -310,117 +238,72 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         validation scores/labels for plotting.
     """
     data = prepare_data(config)
-    X_train = data["X_train"]
-    X_val = data["X_val"]
     y_val = data["y_val"]
-    validate_selection_labels(y_val)
-    X_test = data["X_test"]
     y_test = data["y_test"]
     features_to_keep = data["features_to_keep"]
 
-    # ---- Modeling ---------------------------------------------------------
-    best_if, if_results = IsolationForestDetector.grid_search(
-        X_train,
-        X_val,
+    # ---- Validation-only search (never reads test) ------------------------
+    search = search_validation(
+        data["X_train"],
+        data["X_val"],
+        data["X_val_normal"],
         y_val,
-        {
-            "n_estimators": list(config.if_n_estimators),
-            "max_samples": list(config.if_max_samples),
-            "contamination": list(config.if_contamination),
-        },
-        random_state=config.random_state,
+        config,
     )
+    best_name = search["best_name"]
 
-    best_ocsvm, ocsvm_results = OCSVMDetector.grid_search(
-        X_train,
-        X_val,
-        y_val,
-        {
-            "nu": list(config.ocsvm_nu),
-            "gamma": list(config.ocsvm_gamma),
-            "kernel": list(config.ocsvm_kernel),
-        },
-        random_state=config.random_state,
+    # ---- Frozen test reporting --------------------------------------------
+    flat_test_results = evaluate_detectors(
+        search["detectors"], search["thresholds"], data["X_test"], y_test
     )
-
-    best_ensemble, ensemble_results = ensemble_grid_search(
-        best_if,
-        best_ocsvm,
-        X_val,
-        y_val,
-        config.ensemble_weights,
-        X_ref=data["X_val_normal"],
-    )
-
-    detectors = {"IF": best_if, "OCSVM": best_ocsvm, "Ensemble": best_ensemble}
-
-    val_scores = {name: det.decision_function(X_val) for name, det in detectors.items()}
-    thresholds = {
-        name: tune_threshold(
-            val_scores[name], y_val, precision_floor=config.precision_floor
-        )["threshold"]
-        for name in detectors
-    }
-
-    selection_metric = "roc_auc"
-    selection_scores = {
-        name: roc_auc_score(y_val, scores)
-        for name, scores in val_scores.items()
-    }
-    best_name = max(selection_scores, key=selection_scores.get)
-    best_detector = detectors[best_name]
-    best_threshold = thresholds[best_name]
-
-    # ---- Evaluation -------------------------------------------------------
-    flat_test_results = [
-        evaluate_model(name, det.decision_function(X_test), thresholds[name], y_test)
-        for name, det in detectors.items()
-    ]
-
     _serialize_model(
-        best_detector,
+        search["best_detector"],
         best_name,
-        best_threshold,
+        search["best_threshold"],
         features_to_keep,
         config,
         next(result["pr_auc"] for result in flat_test_results if result["model"] == best_name),
-        selection_metric=selection_metric,
-        selection_score_val=selection_scores[best_name],
+        selection_metric=search["selection_metric"],
+        selection_score_val=search["selection_scores"][best_name],
     )
 
     # Research-only LSTM comparison — surfaced in the table/plots but never
     # eligible to be the serialized production model.
     test_results = list(flat_test_results)
+    val_scores = dict(search["val_scores"])
     lstm_grid_results = None
     if config.lstm_enabled:
-        lstm_val_scores, lstm_test_scores, lstm_grid_results = _run_lstm(
-            config, data
-        )
-        lstm_threshold = tune_threshold(
-            lstm_val_scores, y_val, precision_floor=config.precision_floor
-        )["threshold"]
-        val_scores["LSTM-AE"] = lstm_val_scores
+        lstm_data = prepare_lstm_data(config, data)
+        _assert_lstm_alignment(lstm_data, data)
+        lstm = search_lstm(config, lstm_data)
+        val_scores["LSTM-AE"] = lstm["val_scores"]
         test_results.append(
-            evaluate_model("LSTM-AE", lstm_test_scores, lstm_threshold, y_test)
+            evaluate_scores(
+                "LSTM-AE",
+                lstm["detector"].decision_function(lstm_data["X_test"]),
+                lstm["threshold"],
+                y_test,
+            )
         )
+        lstm_grid_results = lstm["grid_results"]
 
-    metrics_df = compare_models(test_results)
+    metrics_df = summarize(test_results)
 
     logger.info("Training complete. Best model: %s", best_name)
     return {
-        "best_detector": best_detector,
+        "best_detector": search["best_detector"],
         "best_name": best_name,
-        "best_threshold": best_threshold,
-        "selection_metric": selection_metric,
-        "selection_score_val": selection_scores[best_name],
+        "best_threshold": search["best_threshold"],
+        "selection_metric": search["selection_metric"],
+        "selection_score_val": search["selection_scores"][best_name],
         "test_results": test_results,
         "metrics_df": metrics_df,
         "features_to_keep": features_to_keep,
         "val_scores": val_scores,
         "y_val": y_val,
         "y_test": y_test,
-        "if_grid_results": if_results,
-        "ocsvm_grid_results": ocsvm_results,
-        "ensemble_grid_results": ensemble_results,
+        "if_grid_results": search["if_grid_results"],
+        "ocsvm_grid_results": search["ocsvm_grid_results"],
+        "ensemble_grid_results": search["ensemble_grid_results"],
         "lstm_grid_results": lstm_grid_results,
     }

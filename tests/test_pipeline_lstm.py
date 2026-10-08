@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+import cheatdetect.pipeline.search as search_mod
 import cheatdetect.pipeline.train as tr
 from cheatdetect.config import ExperimentConfig
 
@@ -107,7 +108,7 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
 def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
     """Full pipeline runs with the LSTM enabled; LSTM never becomes best_model."""
     _setup_dataset(tmp_path, monkeypatch)
-    ensemble_search = tr.ensemble_grid_search
+    ensemble_search = search_mod.ensemble_grid_search
     calibrated = []
 
     def capture_ensemble(if_detector, ocsvm_detector, X_val, y_val, weights, *, X_ref):
@@ -128,7 +129,7 @@ def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
         calibrated.append(ensemble)
         return ensemble, results
 
-    monkeypatch.setattr(tr, "ensemble_grid_search", capture_ensemble)
+    monkeypatch.setattr(search_mod, "ensemble_grid_search", capture_ensemble)
 
     config = ExperimentConfig(
         chunk_size=20,
