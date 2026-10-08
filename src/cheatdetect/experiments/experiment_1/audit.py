@@ -1,4 +1,10 @@
-"""Original-training diagnostics; no detector fitting or held-out data loading."""
+"""Original-training diagnostics for the frozen Phase 1 specification.
+
+The audit opens only the original normal-training sessions: it re-derives the
+seed-42 split, verifies it against the saved ``split_info.json``, and summarizes
+feature domains and preprocessing geometry. Held-out (validation/test) contents
+are never read, no detector is fitted, and no legacy feature cache is used.
+"""
 
 import hashlib
 import json
@@ -12,10 +18,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PowerTransformer, QuantileTransformer, StandardScaler
 
 from cheatdetect.config import AUDIT_DIR, MIXED_DIR, NORMAL_DIR, SPLIT_INFO_PATH
-from cheatdetect.data.build import merge_window_switch_events
 from cheatdetect.data.cleaning import clean_session_data
-from cheatdetect.data.features.extract import extract_features_from_session
-from cheatdetect.data.sequences import extract_sequences_from_sessions
+from cheatdetect.data.paired import build_paired_representation
 
 from cheatdetect.data.feature_schema import (
     CONTINUOUS, COUNT_LOG, DIRECTION, SIGNED, SOURCE_FEATURES, UNSCALED,
@@ -141,38 +145,44 @@ def run_original_training_audit(output_dir: Path = AUDIT_DIR) -> dict:
     }.items():
         if split[key] != [path.name for path in paths]:
             raise ValueError(f"Saved split disagrees with current seed-42 assignment: {key}")
+    # Each session is expanded once into aligned parent rows and micro
+    # sequences by the shared paired builder, so both views come from the same
+    # realized windows instead of two separate extraction paths.
     parent_frames, micro_frames, identity_frames, session_rows = [], [], [], []
     for path in normal_train:
         raw = pd.read_csv(path)
         cleaned = clean_session_data(raw)
         if cleaned["Is Cheating"].any():
             raise ValueError(f"Cheating events in normal training: {path.name}")
-        parent = merge_window_switch_events(extract_features_from_session(
-            cleaned, chunk_size=50, step_size=25, cheating_threshold=0.5,
-            session_name=path.stem,
-        ))
-        sequences, labels, names = extract_sequences_from_sessions(
-            [cleaned], 50, 25, 10, 5, cheating_threshold=0.5,
+        representation = build_paired_representation(
+            {path.name: cleaned},
+            chunk_size=50, step_size=25, sub_chunk=10, sub_step=5,
+            cheating_threshold=0.5,
         )
-        if len(parent) != len(sequences) or labels.any():
+        if representation.labels.any():
+            raise ValueError(f"Anomalous window label in normal training: {path.name}")
+        if len(representation.parent) != len(representation.sequences):
             raise ValueError(f"Parent/micro alignment failed: {path.name}")
-        starts = np.arange(len(parent)) * 25
+
+        # Parent start offsets in cleaned-event coordinates (window stride 25).
+        starts = representation.identities["parent_start_event"].to_numpy()
         identities = pd.DataFrame({
             "session_file": path.name, "parent_start_event": starts,
             "parent_stop_event_exclusive": starts + 50,
             "parent_start_time_seconds": cleaned.iloc[starts]["Time (seconds)"].to_numpy(),
         })
         identity_frames.append(identities)
-        parent_frames.append(parent[list(SOURCE_FEATURES)])
-        micro = merge_window_switch_events(pd.DataFrame(
-            sequences.reshape(-1, len(names)), columns=names,
+        # Both views are already restricted to the fixed 25-source schema.
+        parent_frames.append(representation.parent)
+        micro_frames.append(pd.DataFrame(
+            representation.sequences.reshape(-1, len(SOURCE_FEATURES)),
+            columns=SOURCE_FEATURES,
         ))
-        micro_frames.append(micro[list(SOURCE_FEATURES)])
         mouse_times = cleaned.loc[cleaned["is_mouse_event"], "Time (seconds)"].sort_values().diff()
         positive_dt = mouse_times[mouse_times > 0]
         session_rows.append({
             "session_file": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "cleaned_events": len(cleaned), "parent_rows": len(parent),
+            "cleaned_events": len(cleaned), "parent_rows": len(representation.parent),
             "time_reversals_in_event_order": int((cleaned["Time (seconds)"].diff() < 0).sum()),
             "duplicate_mouse_timestamps": int((mouse_times == 0).sum()),
             "minimum_positive_mouse_dt_seconds": float(positive_dt.min()),
