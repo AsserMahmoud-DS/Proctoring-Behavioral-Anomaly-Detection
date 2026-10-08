@@ -5,26 +5,36 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import RobustScaler
 from sklearn.svm import OneClassSVM
 
-from cheatdetect.data import Log1pSkewed
+from cheatdetect.data import FeaturePreprocessor
 
 from .base import AnomalyDetector, validate_selection_labels
 
+OCSVM_RECIPES = ("base", "log", "yj", "quantile")
+
 
 class OCSVMDetector(AnomalyDetector):
-    """One-Class SVM wrapped in a ``log1p(skewed) -> RobustScaler -> model`` pipeline."""
+    """One-Class SVM wrapped in a fixed-schema ``FeaturePreprocessor -> model`` pipeline.
+
+    The detector consumes the raw 25-feature behavioral schema and owns its
+    preprocessing (including scaling), so the serialized artifact is
+    self-contained.
+    """
 
     def __init__(
         self,
-        skewed_cols: list[str],
+        recipe: str = "base",
         nu: float = 0.05,
         gamma: str | float = "scale",
         kernel: str = "rbf",
         random_state: int = 42,
     ):
-        self.skewed_cols = list(skewed_cols)
+        if recipe not in OCSVM_RECIPES:
+            raise ValueError(
+                f"Unknown OCSVM recipe '{recipe}'; expected one of {OCSVM_RECIPES}"
+            )
+        self.recipe = recipe
         self.nu = nu
         self.gamma = gamma
         self.kernel = kernel
@@ -32,8 +42,7 @@ class OCSVMDetector(AnomalyDetector):
 
         self.pipeline = Pipeline(
             [
-                ("log1p", Log1pSkewed(self.skewed_cols)),
-                ("scaler", RobustScaler()),
+                ("preprocess", FeaturePreprocessor(recipe, scale=True)),
                 ("model", OneClassSVM(nu=nu, gamma=gamma, kernel=kernel)),
             ]
         )
@@ -52,7 +61,6 @@ class OCSVMDetector(AnomalyDetector):
         X_train: pd.DataFrame,
         X_val: pd.DataFrame,
         y_val: np.ndarray,
-        skewed_cols: list[str],
         param_grid: dict,
         random_state: int = 42,
     ) -> tuple["OCSVMDetector", pd.DataFrame]:
@@ -65,7 +73,7 @@ class OCSVMDetector(AnomalyDetector):
         best_detector: OCSVMDetector | None = None
         best_roc_auc = -np.inf
         for params in ParameterGrid(param_grid):
-            detector = cls(skewed_cols=skewed_cols, random_state=random_state, **params)
+            detector = cls(random_state=random_state, **params)
             detector.fit(X_train)
             scores = detector.decision_function(X_val)
             roc_auc = roc_auc_score(y_val, scores)

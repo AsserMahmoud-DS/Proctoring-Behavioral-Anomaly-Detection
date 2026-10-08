@@ -95,8 +95,8 @@ class ExperimentConfig:
     # ("normal_val"), the combined (mixed) val ("mixed_val"), or no early
     # stopping at all ("none"). "none" is supported but not evaluated.
     lstm_es_source: str = "normal_val"
-    # "standard" (AE recipe) or "log1p_robust" (flat-model recipe).
-    lstm_preprocessing: str = "standard"
+    # Fixed-schema preprocessing recipe: base, log, yj, or quantile.
+    lstm_recipe: str = "base"
 
 # if __name__ == "__main__":
 #     cfg1 = ExperimentConfig(chunk_size = 50, if_n_estimators = (20,30,40), ocsvm_nu = (1,2,3))

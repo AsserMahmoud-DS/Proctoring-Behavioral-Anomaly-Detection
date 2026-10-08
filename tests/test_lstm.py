@@ -2,17 +2,19 @@
 
 import numpy as np
 
+from cheatdetect.data.feature_schema import SOURCE_FEATURES
 from cheatdetect.models.base import SequenceAnomalyDetector
 from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
 
+from synthetic import make_source_sequences
+
 SEQ_LEN = 3
-N_FEATURES = 4
-FEATURES = [f"f{i}" for i in range(N_FEATURES)]
+N_FEATURES = len(SOURCE_FEATURES)
+FEATURES = list(SOURCE_FEATURES)
 
 
 def _make_data(n: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    return rng.normal(0, 1, size=(n, SEQ_LEN, N_FEATURES)).astype("float32")
+    return make_source_sequences(n, SEQ_LEN, seed)
 
 
 def _detector(**overrides) -> LSTMAutoencoderDetector:
@@ -37,8 +39,10 @@ def test_detector_implements_sequence_interface():
     assert isinstance(_detector(), SequenceAnomalyDetector)
 
 
-def test_default_preprocessing_is_standard():
-    assert _detector().preprocessing == "standard"
+def test_default_recipe_is_base():
+    detector = _detector()
+    assert detector.recipe == "base"
+    assert detector.preprocessor.recipe == "base"
 
 
 def test_unfitted_detector_raises():

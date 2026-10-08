@@ -42,17 +42,15 @@ from cheatdetect.data import (
     align_sequence_features,
     augment_sequences,
     augment_session_data,
-    clean_features,
     clean_session_data,
     extract_sequences_from_sessions,
-    find_skewed_features,
     load_sessions,
     load_single_session,
     merge_window_switch_events,
     process_sessions,
-    select_features,
     sequence_length,
 )
+from cheatdetect.data.feature_schema import SOURCE_FEATURES
 from cheatdetect.eval import compare_models, evaluate_model
 from cheatdetect.models import IsolationForestDetector, OCSVMDetector, tune_threshold
 from cheatdetect.models.base import validate_selection_labels
@@ -160,38 +158,35 @@ def _build_matrices(
     df_val_normal: pd.DataFrame,
     df_val_mixed: pd.DataFrame,
     df_test_mixed: pd.DataFrame,
-    config: ExperimentConfig,
 ) -> dict:
-    """Select and clean already-merged features into model-ready matrices.
+    """Select the frozen source schema into raw model-ready matrices.
 
     Expects the DataFrames to already have been passed through
     :func:`merge_window_switch_events` (done in :func:`prepare_data`).
+    Detectors own imputation/transform/scaling via ``FeaturePreprocessor``,
+    so these matrices keep the raw 25-feature schema and are not imputed here.
     """
-    # Feature selection on training data only
-    X_train_raw, _ = clean_features(df_train_normal)
-    features_to_keep, features_to_drop = select_features(
-        X_train_raw, corr_threshold=config.high_corr_threshold
-    )
 
-    X_train, _ = clean_features(df_train_normal)
-    X_train = X_train[features_to_keep]
+    def matrix(frame: pd.DataFrame) -> pd.DataFrame:
+        return frame[list(SOURCE_FEATURES)].astype(float).reset_index(drop=True)
 
-    X_val_normal, _ = clean_features(df_val_normal)
-    X_val_normal = X_val_normal[features_to_keep]
-
-    X_val_mixed, _ = clean_features(df_val_mixed)
-    X_val_mixed = X_val_mixed[features_to_keep]
+    X_train = matrix(df_train_normal)
+    X_val_normal = matrix(df_val_normal)
+    X_val_mixed = matrix(df_val_mixed)
+    X_test = matrix(df_test_mixed)
     y_val_mixed = df_val_mixed["is_cheating"].values
-
-    X_test, _ = clean_features(df_test_mixed)
-    X_test = X_test[features_to_keep]
     y_test = df_test_mixed["is_cheating"].values
 
     # Combine validation sets (normal + mixed) for model selection
     X_val = pd.concat([X_val_normal, X_val_mixed], ignore_index=True)
     y_val = np.concatenate([np.zeros(len(X_val_normal)), y_val_mixed])
 
-    # Persist the keep/drop decision for the notebook's EDA
+    # Persist the frozen keep/drop decision for the notebook's EDA
+    features_to_keep = list(SOURCE_FEATURES)
+    features_to_drop = sorted(
+        col for col in df_train_normal.columns
+        if col not in features_to_keep and col != "is_cheating"
+    )
     FEATURE_LISTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(FEATURE_LISTS_PATH, "w") as f:
         json.dump(
@@ -216,7 +211,6 @@ def _serialize_model(
     best_name: str,
     best_threshold: float,
     features_to_keep: list[str],
-    skewed_features: list[str],
     config: ExperimentConfig,
     pr_auc_test: float,
     *,
@@ -230,7 +224,6 @@ def _serialize_model(
     model_config = {
         "model": best_name,
         "features_to_keep": features_to_keep,
-        "skewed_features": skewed_features,
         "threshold": float(best_threshold),
         "chunk_size": config.chunk_size,
         "step_size": config.step_size,
@@ -280,7 +273,7 @@ def prepare_data(config: ExperimentConfig) -> dict:
     df_test_mixed = merge_window_switch_events(df_test_mixed)
 
     matrices = _build_matrices(
-        df_train_normal, df_val_normal, df_val_mixed, df_test_mixed, config
+        df_train_normal, df_val_normal, df_val_mixed, df_test_mixed
     )
 
     return {
@@ -494,7 +487,7 @@ def _run_lstm(
             "seq_len": lstm_data["seq_len"],
             "epochs": config.lstm_epochs,
             "patience": config.lstm_patience,
-            "preprocessing": config.lstm_preprocessing,
+            "recipe": config.lstm_recipe,
         },
         random_state=config.random_state,
     )
@@ -527,13 +520,10 @@ def train_pipeline(config: ExperimentConfig) -> dict:
     features_to_keep = data["features_to_keep"]
 
     # ---- Modeling ---------------------------------------------------------
-    skewed_features = find_skewed_features(X_train, skew_threshold=config.skew_threshold)
-
     best_if, if_results = IsolationForestDetector.grid_search(
         X_train,
         X_val,
         y_val,
-        skewed_features,
         {
             "n_estimators": list(config.if_n_estimators),
             "max_samples": list(config.if_max_samples),
@@ -546,7 +536,6 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         X_train,
         X_val,
         y_val,
-        skewed_features,
         {
             "nu": list(config.ocsvm_nu),
             "gamma": list(config.ocsvm_gamma),
@@ -594,7 +583,6 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         best_name,
         best_threshold,
         features_to_keep,
-        skewed_features,
         config,
         next(result["pr_auc"] for result in flat_test_results if result["model"] == best_name),
         selection_metric=selection_metric,
@@ -629,7 +617,6 @@ def train_pipeline(config: ExperimentConfig) -> dict:
         "test_results": test_results,
         "metrics_df": metrics_df,
         "features_to_keep": features_to_keep,
-        "skewed_features": skewed_features,
         "val_scores": val_scores,
         "y_val": y_val,
         "y_test": y_test,
