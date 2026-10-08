@@ -51,3 +51,14 @@ The tracked files that belong to Experiment 1. **Status** is one of: `tracked`
 | `src/cheatdetect/experiments/experiment_1/runner.py` | new | Validation-only grid runner; winners, ensembles, seed repeats, frozen manifest |
 | `src/cheatdetect/experiments/experiment_1/reporting.py` | new | Final test reporting behind the frozen manifest (fails closed) |
 | `src/cheatdetect/experiments/__main__.py` | new | Shared CLI (`python -m cheatdetect.experiments --phase N`) |
+
+## Notebooks (Study Phases 3-6)
+
+Only the `.ipynb` files are tracked; edit the `.py` twin and Jupytext-sync it
+(see `AGENTS.md`). The user executes these notebooks.
+
+| File | Status | Role |
+|---|---|---|
+| `.../experiment_1/notebooks/study_run.ipynb` | new | Phase 3-4: build the bundle, run/lock the paired search, review candidates |
+| `.../experiment_1/notebooks/study_sensitivity.ipynb` | new | Phase 5: per-seed repeat table (no best-seed selection) |
+| `.../experiment_1/notebooks/study_report.ipynb` | new | Phase 6: frozen test tables, grouped figures, sensitivity summary |

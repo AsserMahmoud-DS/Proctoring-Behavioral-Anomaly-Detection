@@ -12,6 +12,7 @@ Supervised/
 src/*.json
 .vscode/
 notebooks/*.py
+src/cheatdetect/experiments/experiment_1/notebooks/*.py
 old/
 report.md
 /study/
