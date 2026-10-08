@@ -1,30 +1,26 @@
-"""Data loading, cleaning, feature extraction, transformation, and selection.
+"""Data loading, cleaning, feature extraction, and fixed-schema preparation.
 
 Public API:
     - ``load_single_session``, ``load_sessions`` — read raw CSVs.
-    - ``clean_session_data``, ``clean_features`` — raw event and feature matrix cleaning.
-    - ``process_session``, ``process_sessions`` — end-to-end pipeline.
+    - ``clean_session_data``, ``clean_features`` — raw event and feature matrix
+      cleaning.
     - ``extract_features_from_session``, ``extract_features_from_chunk`` —
-      feature extraction from cleaned data.
-    - ``extract_mouse_features``, ``extract_keyboard_features``,
-      ``extract_action_features`` — domain-specific extractors.
+      window feature extraction; the domain-specific extractors are re-exported
+      too.
     - ``merge_window_switch_events`` — merge blur/focus/tab-switch columns.
-    - ``Log1pSkewed`` — sklearn transformer for log1p on skewed features.
-    - ``find_skewed_features`` — identify columns eligible for log1p.
-    - ``add_coordinate_noise``, ``augment_session_data`` —
-      Gaussian-noise data augmentation for normal sessions.
-    - ``extract_sequences_from_sessions``, ``augment_sequences``,
-      ``align_sequence_features``, ``sequence_length`` — micro-chunk
-      sequence construction for temporal models (LSTM autoencoder).
-    - ``select_features`` — zero-variance + correlation-based feature selection.
-    - ``feature_summary`` — keep/drop decision table for EDA.
-    - ``detect_zero_variance``, ``find_correlated_pairs``,
-      ``classify_correlation_pair`` — selection building blocks.
+    - ``FeaturePreprocessor``, ``gamma_center``, ``validate_features`` — frozen
+      25-source → 33-encoded preprocessing recipes.
+    - ``PairedRepresentation``, ``build_paired_representation``,
+      ``extract_paired_features``, ``load_parent_sessions`` — aligned flat and
+      micro-sequence views from shared realized parent windows.
+    - ``PreparedStudy``, ``prepare_study``, ``save_prepared``, ``load_prepared``,
+      ``input_manifest`` — manifest-guarded dataset builder.
+    - ``add_coordinate_noise``, ``augment_session_data`` — training-only
+      Gaussian coordinate augmentation for normal sessions.
 """
 
 from .loader import load_single_session, load_sessions
 from .cleaning import clean_session_data, clean_features
-from .pipeline import process_session, process_sessions
 from .features import (
     extract_features_from_session,
     extract_features_from_chunk,
@@ -33,7 +29,6 @@ from .features import (
     extract_action_features,
 )
 from .build import merge_window_switch_events
-from .transform import Log1pSkewed, find_skewed_features
 from .preprocessing import FeaturePreprocessor, gamma_center, validate_features
 from .paired import (
     PairedRepresentation,
@@ -49,21 +44,18 @@ from .dataset import (
     save_prepared,
 )
 from .augment import add_coordinate_noise, augment_session_data
-from .sequences import (
-    align_sequence_features,
-    augment_sequences,
-    extract_sequences_from_sessions,
-    sequence_length,
-)
-from .selection import (
-    classify_correlation_pair,
-    detect_zero_variance,
-    feature_summary,
-    find_correlated_pairs,
-    select_features,
-)
 
 __all__ = [
+    "load_single_session",
+    "load_sessions",
+    "clean_session_data",
+    "clean_features",
+    "extract_features_from_session",
+    "extract_features_from_chunk",
+    "extract_mouse_features",
+    "extract_keyboard_features",
+    "extract_action_features",
+    "merge_window_switch_events",
     "FeaturePreprocessor",
     "gamma_center",
     "validate_features",
@@ -76,29 +68,6 @@ __all__ = [
     "save_prepared",
     "load_prepared",
     "input_manifest",
-    "load_single_session",
-    "load_sessions",
-    "clean_session_data",
-    "clean_features",
-    "process_session",
-    "process_sessions",
-    "extract_features_from_session",
-    "extract_features_from_chunk",
-    "extract_mouse_features",
-    "extract_keyboard_features",
-    "extract_action_features",
-    "merge_window_switch_events",
-    "Log1pSkewed",
-    "find_skewed_features",
     "add_coordinate_noise",
     "augment_session_data",
-    "extract_sequences_from_sessions",
-    "augment_sequences",
-    "align_sequence_features",
-    "sequence_length",
-    "select_features",
-    "feature_summary",
-    "detect_zero_variance",
-    "find_correlated_pairs",
-    "classify_correlation_pair",
 ]
