@@ -5,8 +5,11 @@ import pytest
 from cheatdetect.app.schemas import Event, InferenceConfig, PredictionRequest, PredictionResponse, ChunkPrediction
 from cheatdetect.app.service import PredictionService
 from cheatdetect.models.base import AnomalyDetector
+from cheatdetect.models.isolation_forest import IsolationForestDetector
 from cheatdetect.models.threshold import tune_threshold
 from cheatdetect.eval.metrics import evaluate_model
+
+from synthetic import make_source_frame
 
 
 class FakeDetector(AnomalyDetector):
@@ -30,13 +33,6 @@ def fake_config():
         step_size=2,
         cheating_threshold=0.5,
         threshold=0.0,
-        features_to_keep=[
-            "elapsed_time",
-            "mouse_path_length",
-            "mouse_click_count",
-            "keyboard_typing_rate",
-            "window_switch_events",
-        ],
     )
 
 
@@ -111,6 +107,21 @@ class TestPredictionService:
         assert req2 == PredictionResponse(session_id="123", verdict="normal", chunks_pred=[
             ChunkPrediction(chunk_index = 0, score = -1, isanomalous = False)
         ])
+
+    def test_service_feeds_fixed_schema_to_real_detector(self, fake_config):
+        """The service guarantees the 25-source schema; the artifact preprocesses."""
+        detector = IsolationForestDetector(
+            recipe="base", n_estimators=10, max_samples="auto", random_state=0
+        ).fit(make_source_frame(40, seed=3))
+        service = PredictionService(detector=detector, config=fake_config)
+
+        response = service.predict(
+            PredictionRequest(session_id="real", events=make_events(8))
+        )
+
+        assert len(response.chunks_pred) == 3
+        assert all(np.isfinite(chunk.score) for chunk in response.chunks_pred)
+        assert response.verdict in {"normal", "anomalous"}
 
     def test_threshold_equality_matches_tuning_detector_and_evaluation(self, fake_config):
         scores = np.array([-0.1, 0.0, 0.1])

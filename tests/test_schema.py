@@ -73,7 +73,6 @@ class TestInferenceConfig:
             step_size=25,
             cheating_threshold=0.5,
             threshold=-0.1,
-            features_to_keep=['elapsed_time'],
         )
         assert config.chunk_size == 50
         assert config.model == 'IF'
@@ -86,7 +85,6 @@ class TestInferenceConfig:
                 step_size=25,
                 cheating_threshold=0.5,
                 threshold=-0.1,
-                features_to_keep=['elapsed_time'],
             )
 
     def test_extra_fields_ignored(self):
@@ -99,4 +97,5 @@ class TestInferenceConfig:
             features_to_keep=['elapsed_time'],
             nonsense='hello',
         )
+        assert not hasattr(config, 'features_to_keep')
         assert not hasattr(config, 'nonsense')

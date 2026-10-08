@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+import cheatdetect.pipeline.search as search_mod
 import cheatdetect.pipeline.train as tr
 from cheatdetect.config import ExperimentConfig
 
@@ -41,17 +42,7 @@ def _patch_paths(monkeypatch, base):
         "EDA_DIR": base / "reports" / "eda",
         "VAL_DIR": base / "reports" / "val",
         "TEST_DIR": base / "reports" / "test",
-        "TRAIN_NORMAL_PATH": base / "processed" / "train_normal.pkl",
-        "VAL_NORMAL_PATH": base / "processed" / "val_normal.pkl",
-        "VAL_MIXED_PATH": base / "processed" / "val_mixed.pkl",
-        "TEST_MIXED_PATH": base / "processed" / "test_mixed.pkl",
         "SPLIT_INFO_PATH": base / "processed" / "split_info.json",
-        "TRAIN_AUGMENTED_PATH": base / "processed" / "train_augmented.pkl",
-        "FEATURE_LISTS_PATH": base / "processed" / "feature_lists.json",
-        "LSTM_TRAIN_PATH": base / "processed" / "lstm_train.npz",
-        "LSTM_VAL_PATH": base / "processed" / "lstm_val.npz",
-        "LSTM_ES_PATH": base / "processed" / "lstm_es.npz",
-        "LSTM_TEST_PATH": base / "processed" / "lstm_test.npz",
     }.items():
         monkeypatch.setattr(tr, name, value)
 
@@ -87,7 +78,7 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
     )
 
     data = tr.prepare_data(config)
-    lstm = tr.prepare_lstm_data(config, data, data["features_to_keep"])
+    lstm = tr.prepare_lstm_data(config, data)
 
     pd.testing.assert_frame_equal(
         data["X_val_normal"].reset_index(drop=True),
@@ -117,7 +108,7 @@ def test_lstm_sequences_align_with_flat_pipeline(tmp_path, monkeypatch):
 def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
     """Full pipeline runs with the LSTM enabled; LSTM never becomes best_model."""
     _setup_dataset(tmp_path, monkeypatch)
-    ensemble_search = tr.ensemble_grid_search
+    ensemble_search = search_mod.ensemble_grid_search
     calibrated = []
 
     def capture_ensemble(if_detector, ocsvm_detector, X_val, y_val, weights, *, X_ref):
@@ -138,7 +129,7 @@ def test_train_pipeline_with_lstm_end_to_end(tmp_path, monkeypatch):
         calibrated.append(ensemble)
         return ensemble, results
 
-    monkeypatch.setattr(tr, "ensemble_grid_search", capture_ensemble)
+    monkeypatch.setattr(search_mod, "ensemble_grid_search", capture_ensemble)
 
     config = ExperimentConfig(
         chunk_size=20,

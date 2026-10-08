@@ -9,6 +9,8 @@ from cheatdetect.models.isolation_forest import IsolationForestDetector
 from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
 from cheatdetect.models.ocsvm import OCSVMDetector
 
+from synthetic import make_source_frame
+
 
 LABELS = np.array([0, 0, 0, 0, 1, 1])
 PR_WINNER = np.array([1, 2, 3, 4, 0, 5], dtype=float)
@@ -51,7 +53,7 @@ def run_search(model_name, monkeypatch, labels=LABELS, tied=False):
             fixed_kwargs={"input_dim": 1, "seq_len": 1},
         )
     else:
-        best, results = detector_class.grid_search(training, validation, labels, [], grid)
+        best, results = detector_class.grid_search(training, validation, labels, grid)
     return best, results, parameter, candidates
 
 
@@ -84,19 +86,14 @@ def test_if_grid_search_preserves_int_params_for_numeric_grid():
     """Regression (BUG-1): deriving best params from a DataFrame row upcast
     ``n_estimators`` to float and crashed IsolationForest. When every grid value
     is numeric the selected detector must keep its original Python types."""
-    X_train = pd.DataFrame(
-        {"f0": np.arange(20, dtype=float), "f1": np.arange(20, 0, -1, dtype=float)}
-    )
-    X_val = pd.DataFrame(
-        {"f0": np.arange(20, 40, dtype=float), "f1": np.arange(20, 40, dtype=float)[::-1]}
-    )
+    X_train = make_source_frame(20, seed=0)
+    X_val = make_source_frame(20, seed=1)
     y_val = np.array([0] * 10 + [1] * 10)
 
     best, results = IsolationForestDetector.grid_search(
         X_train,
         X_val,
         y_val,
-        [],
         {"n_estimators": [10, 20], "max_samples": [0.8]},
         random_state=0,
     )

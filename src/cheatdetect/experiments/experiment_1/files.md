@@ -35,6 +35,13 @@ The tracked files that belong to Experiment 1. **Status** is one of: `tracked`
 | `src/cheatdetect/experiments/experiment_1/brief.md` | new | This experiment's aim and protocol summary |
 | `src/cheatdetect/experiments/experiment_1/files.md` | new | This inventory |
 
+## Shared pipeline entry points
+
+| File | Status | Role |
+|---|---|---|
+| `src/cheatdetect/pipeline/search.py` | new | Validation-only search used by the runner and production |
+| `src/cheatdetect/pipeline/report.py` | new | Test reporting entry point (called after selection freezes) |
+
 ## Planned (Study Phase 3+)
 
 | File | Status | Role |
@@ -43,5 +50,3 @@ The tracked files that belong to Experiment 1. **Status** is one of: `tracked`
 | `src/cheatdetect/experiments/experiment_1/runner.py` | planned | Validation-only grid runner; per-candidate artifacts |
 | `src/cheatdetect/experiments/experiment_1/reporting.py` | planned | Final test reporting behind a frozen manifest |
 | `src/cheatdetect/experiments/__main__.py` | planned | Shared CLI (`python -m cheatdetect.experiments --phase N`) |
-| `src/cheatdetect/pipeline/search.py` | planned | Shared val-only search used by the runner and production |
-| `src/cheatdetect/pipeline/report.py` | planned | Shared test reporting entry point |

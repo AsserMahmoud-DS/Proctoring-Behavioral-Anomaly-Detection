@@ -7,36 +7,50 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 
-from cheatdetect.data import Log1pSkewed
+from cheatdetect.data import FeaturePreprocessor
 
 from .base import AnomalyDetector, validate_selection_labels
 
+IF_RECIPES = ("base", "log")
+
 
 class IsolationForestDetector(AnomalyDetector):
-    """Isolation Forest wrapped in a ``log1p(skewed) -> model`` pipeline."""
+    """Isolation Forest wrapped in a fixed-schema ``FeaturePreprocessor -> model`` pipeline.
+
+    The detector consumes the raw 25-feature behavioral schema and owns its
+    preprocessing, so the serialized artifact is self-contained: the same
+    fitted pipeline transforms training and inference inputs.
+    """
 
     def __init__(
         self,
-        skewed_cols: list[str],
+        recipe: str = "base",
         n_estimators: int = 100,
         max_samples: int | float | str = "auto",
+        max_features: float = 1.0,
         contamination: float = 0.1,
         random_state: int = 42,
     ):
-        self.skewed_cols = list(skewed_cols)
+        if recipe not in IF_RECIPES:
+            raise ValueError(
+                f"Unknown IF recipe '{recipe}'; expected one of {IF_RECIPES}"
+            )
+        self.recipe = recipe
         self.n_estimators = n_estimators
         self.max_samples = max_samples
+        self.max_features = max_features
         self.contamination = contamination
         self.random_state = random_state
 
         self.pipeline = Pipeline(
             [
-                ("log1p", Log1pSkewed(self.skewed_cols)),
+                ("preprocess", FeaturePreprocessor(recipe, scale=False)),
                 (
                     "model",
                     IsolationForest(
                         n_estimators=n_estimators,
                         max_samples=max_samples,
+                        max_features=max_features,
                         contamination=contamination,
                         random_state=random_state,
                         n_jobs=-1,
@@ -59,16 +73,14 @@ class IsolationForestDetector(AnomalyDetector):
         X_train: pd.DataFrame,
         X_val: pd.DataFrame,
         y_val: np.ndarray,
-        skewed_cols: list[str],
         param_grid: dict,
         random_state: int = 42,
     ) -> tuple["IsolationForestDetector", pd.DataFrame]:
         """Search *param_grid* and return the best detector by validation ROC-AUC.
 
         Args:
-            X_train, X_val: training / validation feature matrices.
+            X_train, X_val: raw 25-feature training / validation matrices.
             y_val: binary labels (1 = anomalous).
-            skewed_cols: columns for the ``Log1pSkewed`` transform.
             param_grid: dict of constructor params → list of candidates.
             random_state: seed for reproducibility.
 
@@ -80,7 +92,7 @@ class IsolationForestDetector(AnomalyDetector):
         best_detector: IsolationForestDetector | None = None
         best_roc_auc = -np.inf
         for params in ParameterGrid(param_grid):
-            detector = cls(skewed_cols=skewed_cols, random_state=random_state, **params)
+            detector = cls(random_state=random_state, **params)
             detector.fit(X_train)
             scores = detector.decision_function(X_val)
             roc_auc = roc_auc_score(y_val, scores)

@@ -1,7 +1,7 @@
 """LSTM autoencoder for sequence anomaly detection (research-only model).
 
-Each sample is a sequence of micro-chunk feature vectors (see
-``cheatdetect.data.sequences``). The encoder compresses the sequence into a
+Each sample is a sequence of micro-chunk feature vectors (see the paired
+representation in ``cheatdetect.data``). The encoder compresses the sequence into a
 latent vector which the decoder uses to reconstruct the full sequence.
 Trained on normal data only; per-sample reconstruction MSE is the anomaly
 score (higher = more anomalous), matching the sign convention of
@@ -19,13 +19,13 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterGrid
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import RobustScaler, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
-from cheatdetect.data import Log1pSkewed
+from cheatdetect.data import FeaturePreprocessor
 
 from .base import SequenceAnomalyDetector, validate_selection_labels
+
+LSTM_RECIPES = ("base", "log", "yj", "quantile")
 
 
 class LSTMAutoencoder(nn.Module):
@@ -163,13 +163,11 @@ def _lstm_anomaly_scores(
 class LSTMAutoencoderDetector(SequenceAnomalyDetector):
     """Sequence anomaly detector wrapping an LSTM autoencoder.
 
-    Supports two preprocessing modes via ``preprocessing``:
-
-    - ``"log1p_robust"`` (default): ``log1p`` on skewed features then
-      ``RobustScaler`` — matches the flat IF/OCSVM models.
-    - ``"standard"``: plain ``StandardScaler`` — the original AE recipe.
-
-    Data is reshaped to ``(n_samples, seq_len, n_features)`` for the model.
+    Consumes raw 25-source-feature sequences and owns its preprocessing via a
+    :class:`~cheatdetect.data.FeaturePreprocessor` (fixed-schema imputation,
+    selective transforms, scaling, and direction encoding). The autoencoder
+    therefore operates on the encoded feature dimension rather than the raw
+    source dimension.
     """
 
     def __init__(
@@ -177,7 +175,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         feature_names: list[str],
         input_dim: int,
         seq_len: int,
-        skewed_cols: list[str] | None = None,
+        recipe: str = "base",
         hidden_dim: int = 16,
         num_layers: int = 1,
         dropout: float = 0.1,
@@ -185,13 +183,16 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         batch_size: int = 64,
         epochs: int = 100,
         patience: int = 10,
-        preprocessing: str = "standard",
         random_state: int = 42,
     ):
+        if recipe not in LSTM_RECIPES:
+            raise ValueError(
+                f"Unknown LSTM recipe '{recipe}'; expected one of {LSTM_RECIPES}"
+            )
         self.feature_names = list(feature_names)
         self.input_dim = input_dim
         self.seq_len = seq_len
-        self.skewed_cols = list(skewed_cols) if skewed_cols else []
+        self.recipe = recipe
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.dropout = dropout
@@ -199,30 +200,16 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         self.batch_size = batch_size
         self.epochs = epochs
         self.patience = patience
-        self.preprocessing = preprocessing
         self.random_state = random_state
 
-        if preprocessing == "standard":
-            self.preprocessor = Pipeline([("scaler", StandardScaler())])
-        elif preprocessing == "log1p_robust":
-            self.preprocessor = Pipeline(
-                [
-                    ("log1p", Log1pSkewed(self.skewed_cols)),
-                    ("scaler", RobustScaler()),
-                ]
-            )
-        else:
-            raise ValueError(
-                f"Unknown preprocessing '{preprocessing}'; expected "
-                "'standard' or 'log1p_robust'"
-            )
+        self.preprocessor = FeaturePreprocessor(recipe, scale=True)
         self.model: LSTMAutoencoder | None = None
 
     def _preprocess(self, X: np.ndarray, fit: bool) -> np.ndarray:
         n_samples, seq_len, n_features = X.shape
         if n_features != self.input_dim:
             raise ValueError(
-                f"Expected {self.input_dim} features, got {n_features}"
+                f"Expected {self.input_dim} source features, got {n_features}"
             )
         flat = pd.DataFrame(
             X.reshape(-1, n_features), columns=self.feature_names
@@ -232,9 +219,8 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
             if fit
             else self.preprocessor.transform(flat)
         )
-        return np.asarray(transformed, dtype=np.float32).reshape(
-            n_samples, seq_len, n_features
-        )
+        output = np.asarray(transformed, dtype=np.float32)
+        return output.reshape(n_samples, seq_len, output.shape[1])
 
     def fit(
         self, X: np.ndarray, X_es: np.ndarray | None = None
@@ -246,7 +232,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         X_es_scaled = None if X_es is None else self._preprocess(X_es, fit=False)
 
         self.model = LSTMAutoencoder(
-            self.input_dim, self.hidden_dim, self.num_layers, self.dropout
+            X_scaled.shape[2], self.hidden_dim, self.num_layers, self.dropout
         )
         _train_lstm_ae(
             self.model,
@@ -283,7 +269,7 @@ class LSTMAutoencoderDetector(SequenceAnomalyDetector):
         (``hidden_dim``, ``num_layers``, ``dropout``, ``lr``, ``batch_size``)
         are swept; ``fixed_kwargs`` carries the sequence geometry
         (``input_dim``, ``seq_len``), training controls (``epochs``,
-        ``patience``), ``preprocessing``, and ``skewed_cols`` when needed.
+        ``patience``), and the preprocessing ``recipe`` when non-default.
 
         Args:
             X_train, X_val: 3D training / validation sequences.

@@ -1,6 +1,8 @@
 """Ensure validation locks the deployable winner before test evaluation."""
 
+import ast
 import json
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -8,6 +10,8 @@ import pandas as pd
 import pytest
 from sklearn.metrics import average_precision_score, roc_auc_score
 
+import cheatdetect.pipeline.report as report_mod
+import cheatdetect.pipeline.search as search_mod
 import cheatdetect.pipeline.train as tr
 from cheatdetect.app.schemas import InferenceConfig
 from cheatdetect.config import ExperimentConfig
@@ -28,6 +32,28 @@ class ScoredDetector(AnomalyDetector):
 
     def decision_function(self, X):
         return X["sample"].map(self.scores).to_numpy(dtype=float)
+
+
+class FixedTestDetector(AnomalyDetector):
+    """Return precomputed test scores; never refit."""
+
+    def __init__(self, scores):
+        self._scores = np.asarray(scores, dtype=float)
+
+    def fit(self, X):
+        raise AssertionError("Research detectors must not be refit")
+
+    def decision_function(self, X):
+        return self._scores
+
+
+def test_search_module_never_references_test_data():
+    """The validation-only search must not name test partitions or matrices."""
+    tree = ast.parse(Path(search_mod.__file__).read_text())
+    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+    names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+    forbidden = {"X_test", "y_test", "mixed_test", "TEST_MIXED_PATH", "TEST_DIR"}
+    assert not (names & forbidden)
 
 
 @pytest.mark.parametrize(
@@ -66,8 +92,12 @@ def test_winner_uses_validation_and_excludes_lstm(
 
         return search
 
-    monkeypatch.setattr(tr.IsolationForestDetector, "grid_search", selected(if_detector))
-    monkeypatch.setattr(tr.OCSVMDetector, "grid_search", selected(ocsvm_detector))
+    monkeypatch.setattr(
+        search_mod.IsolationForestDetector, "grid_search", selected(if_detector)
+    )
+    monkeypatch.setattr(
+        search_mod.OCSVMDetector, "grid_search", selected(ocsvm_detector)
+    )
     selection_calls = []
 
     def validation_metric(y_true, scores):
@@ -75,23 +105,38 @@ def test_winner_uses_validation_and_excludes_lstm(
         selection_calls.append(scores.copy())
         return roc_auc_score(y_true, scores)
 
-    monkeypatch.setattr(tr, "roc_auc_score", validation_metric)
-    evaluate = tr.evaluate_model
+    monkeypatch.setattr(search_mod, "roc_auc_score", validation_metric)
+    evaluate = report_mod.evaluate_model
 
     def evaluate_after_selection(name, scores, threshold, y_true):
         assert len(selection_calls) == 3
         assert y_true is data["y_test"]
         return evaluate(name, scores, threshold, y_true)
 
-    monkeypatch.setattr(tr, "evaluate_model", evaluate_after_selection)
+    monkeypatch.setattr(report_mod, "evaluate_model", evaluate_after_selection)
 
-    def research_lstm(config, prepared, features):
+    def fake_lstm_data(config, prepared):
         assert prepared is data
+        return {
+            "X_test": data["X_test"],
+            "y_val": data["y_val"],
+            "y_test": data["y_test"],
+        }
+
+    monkeypatch.setattr(tr, "prepare_lstm_data", fake_lstm_data)
+
+    def research_lstm(config, lstm_data):
+        assert lstm_data["y_val"] is data["y_val"]
         saved = json.loads((tmp_path / "model_config.json").read_text())
         assert saved["model"] == expected_winner
-        return data["y_val"].astype(float), data["y_test"].astype(float), pd.DataFrame()
+        return {
+            "detector": FixedTestDetector(data["y_test"].astype(float)),
+            "val_scores": data["y_val"].astype(float),
+            "threshold": 0.5,
+            "grid_results": pd.DataFrame(),
+        }
 
-    monkeypatch.setattr(tr, "_run_lstm", research_lstm)
+    monkeypatch.setattr(tr, "search_lstm", research_lstm)
     results = tr.train_pipeline(ExperimentConfig(lstm_enabled=True, ensemble_weights=(0.5,)))
 
     assert results["best_name"] == expected_winner
