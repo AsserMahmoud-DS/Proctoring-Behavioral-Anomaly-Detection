@@ -48,6 +48,6 @@ The tracked files that belong to Experiment 1. **Status** is one of: `tracked`
 | File | Status | Role |
 |---|---|---|
 | `src/cheatdetect/experiments/experiment_1/config.py` | new | Frozen `StudyConfig`: recipes, grids, seeds, budgets |
-| `src/cheatdetect/experiments/experiment_1/runner.py` | new | Validation-only grid runner; winners, ensembles, frozen manifest |
-| `src/cheatdetect/experiments/experiment_1/reporting.py` | planned | Final test reporting behind a frozen manifest |
-| `src/cheatdetect/experiments/__main__.py` | planned | Shared CLI (`python -m cheatdetect.experiments --phase N`) |
+| `src/cheatdetect/experiments/experiment_1/runner.py` | new | Validation-only grid runner; winners, ensembles, seed repeats, frozen manifest |
+| `src/cheatdetect/experiments/experiment_1/reporting.py` | new | Final test reporting behind the frozen manifest (fails closed) |
+| `src/cheatdetect/experiments/__main__.py` | new | Shared CLI (`python -m cheatdetect.experiments --phase N`) |

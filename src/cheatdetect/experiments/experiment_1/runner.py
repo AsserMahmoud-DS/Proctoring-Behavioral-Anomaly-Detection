@@ -29,6 +29,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 from cheatdetect.config import AUDIT_DIR, MIXED_DIR, NORMAL_DIR, STUDY_ARTIFACTS_DIR
 from cheatdetect.data import (
@@ -66,6 +67,7 @@ logger = logging.getLogger(__name__)
 
 BUNDLE_DIR_NAME = "phase_03_study"
 RUN_DIR_NAME = "phase_04_study"
+SENSITIVITY_DIR_NAME = "phase_05_seed_sensitivity"
 DEFAULT_BUNDLE_DIR = STUDY_ARTIFACTS_DIR / BUNDLE_DIR_NAME
 DEFAULT_RUN_DIR = STUDY_ARTIFACTS_DIR / RUN_DIR_NAME
 
@@ -106,6 +108,7 @@ class Winner:
     if_recipe: str | None = None
     ocsvm_recipe: str | None = None
     if_weight: float | None = None
+    seed: int | None = None
 
     @property
     def condition(self) -> str:
@@ -113,7 +116,8 @@ class Winner:
 
     @property
     def id(self) -> str:
-        return f"{self.family}:{self.recipe}:{self.condition}"
+        base = f"{self.family}:{self.recipe}:{self.condition}"
+        return base if self.seed is None else f"{base}:seed{self.seed}"
 
 
 @dataclass
@@ -225,6 +229,71 @@ def _params(candidate: Mapping) -> dict:
     return {key: value for key, value in candidate.items() if key != "recipe"}
 
 
+def _fit_detector(
+    family: str,
+    recipe: str,
+    study: PreparedStudy,
+    config: StudyConfig,
+    seed: int,
+    params: Mapping,
+    views: ValidationViews,
+):
+    """Fit one detector on the augmented raw rows with the frozen preprocessor.
+
+    The detector's ``recipe`` names the preprocessing rule, while the study
+    recipe (e.g. ``"IF-raw"``) names the frozen original-training processor to
+    reuse. Returns ``(detector, diagnostics)``.
+    """
+    frozen = copy.deepcopy(study.preprocessors[recipe])
+    processor_recipe = frozen.recipe
+    if family == "if":
+        detector = IsolationForestDetector(
+            recipe=processor_recipe,
+            preprocessor=frozen,
+            random_state=seed,
+            **params,
+        )
+        detector.fit(views.flat_train)
+        return detector, {}
+    if family == "ocsvm":
+        detector = OCSVMDetector(
+            recipe=processor_recipe,
+            preprocessor=frozen,
+            random_state=seed,
+            **params,
+        )
+        detector.fit(views.flat_train)
+        return detector, detector.convergence_diagnostics()
+    if family == "ae":
+        # Lazy import keeps torch out of phases that do not run the AE.
+        from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
+
+        detector = LSTMAutoencoderDetector(
+            feature_names=list(SOURCE_FEATURES),
+            input_dim=len(SOURCE_FEATURES),
+            seq_len=views.sequence_train.shape[1],
+            recipe=processor_recipe,
+            preprocessor=frozen,
+            latent_dropout=config.lstm_latent_dropout,
+            lstm_dropout=config.lstm_dropout,
+            weight_decay=config.lstm_weight_decay,
+            min_improvement=config.lstm_min_improvement,
+            grad_clip=config.lstm_grad_clip,
+            epochs=config.lstm_epochs,
+            patience=config.lstm_patience,
+            random_state=seed,
+            **params,
+        )
+        detector.fit(views.sequence_train, X_es=views.sequence_val_normal)
+        return detector, {
+            "epochs_trained": detector.model.epochs_trained,
+            "best_epoch": detector.model.best_epoch,
+            "optimizer_updates": detector.model.optimizer_updates,
+            "best_es_loss": detector.model.best_es_loss,
+        }
+    raise ValueError(f"Unknown model family '{family}'")
+
+
 def _evaluator(
     family: str,
     recipe: str,
@@ -232,65 +301,13 @@ def _evaluator(
     config: StudyConfig,
     views: ValidationViews,
 ):
-    """Closure fitting one candidate on augmented raw rows with frozen preprocessing."""
+    """Closure used by the shared sweep: fit a candidate and score validation."""
 
     def evaluate(candidate: dict):
-        params = _params(candidate)
-        frozen = copy.deepcopy(study.preprocessors[recipe])
-        # The detector's ``recipe`` names the preprocessing rule, while the
-        # study recipe (e.g. "IF-raw") names the frozen processor to reuse.
-        processor_recipe = frozen.recipe
-        if family == "if":
-            detector = IsolationForestDetector(
-                recipe=processor_recipe,
-                preprocessor=frozen,
-                random_state=config.main_seed,
-                **params,
-            )
-            detector.fit(views.flat_train)
-            return detector, detector.decision_function(views.flat_val), {}
-        if family == "ocsvm":
-            detector = OCSVMDetector(
-                recipe=processor_recipe,
-                preprocessor=frozen,
-                random_state=config.main_seed,
-                **params,
-            )
-            detector.fit(views.flat_train)
-            return (
-                detector,
-                detector.decision_function(views.flat_val),
-                detector.convergence_diagnostics(),
-            )
-        if family == "ae":
-            # Lazy import keeps torch out of phases that do not run the AE.
-            from cheatdetect.models.lstm_ae import LSTMAutoencoderDetector
-
-            detector = LSTMAutoencoderDetector(
-                feature_names=list(SOURCE_FEATURES),
-                input_dim=len(SOURCE_FEATURES),
-                seq_len=views.sequence_train.shape[1],
-                recipe=processor_recipe,
-                preprocessor=frozen,
-                latent_dropout=config.lstm_latent_dropout,
-                lstm_dropout=config.lstm_dropout,
-                weight_decay=config.lstm_weight_decay,
-                min_improvement=config.lstm_min_improvement,
-                grad_clip=config.lstm_grad_clip,
-                epochs=config.lstm_epochs,
-                patience=config.lstm_patience,
-                random_state=config.main_seed,
-                **params,
-            )
-            detector.fit(views.sequence_train, X_es=views.sequence_val_normal)
-            diagnostics = {
-                "epochs_trained": detector.model.epochs_trained,
-                "best_epoch": detector.model.best_epoch,
-                "optimizer_updates": detector.model.optimizer_updates,
-                "best_es_loss": detector.model.best_es_loss,
-            }
-            return detector, detector.decision_function(views.sequence_val), diagnostics
-        raise ValueError(f"Unknown model family '{family}'")
+        detector, diagnostics = _fit_detector(
+            family, recipe, study, config, config.main_seed, _params(candidate), views
+        )
+        return detector, _validation_scores(family, detector, views), diagnostics
 
     return evaluate
 
@@ -436,6 +453,7 @@ def _winner_entry(winner: Winner) -> dict:
             "if_recipe": winner.if_recipe,
             "ocsvm_recipe": winner.ocsvm_recipe,
             "if_weight": winner.if_weight,
+            "seed": winner.seed,
         }
     )
 
@@ -455,7 +473,109 @@ def _freeze_manifest(
         "split": study.manifest["split"],
         "primary": [_winner_entry(winner) for winner in winners.values()]
         + [_winner_entry(winner) for winner in ensembles.values()],
+        "sensitivity": [],
     }
+
+
+def load_frozen_manifest(run_dir: Path | None = None) -> dict:
+    """Load the frozen Phase 4 reporting manifest used to gate later phases."""
+    path = (run_dir or DEFAULT_RUN_DIR) / "reporting_manifest.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"Frozen reporting manifest not found: {path}")
+    manifest = json.loads(path.read_text())
+    if not manifest.get("frozen") or not manifest.get("primary"):
+        raise ValueError("Reporting manifest is not frozen or has no primary approaches")
+    return manifest
+
+
+def _overall_finalists(manifest: dict) -> list[dict]:
+    """Highest validation ROC-AUC IF and AE entries per augmentation condition.
+
+    First entry wins ties (Phase 4 locked order).
+    """
+    finalists = []
+    for augmented in AUGMENTATION_CONDITIONS:
+        for family in ("if", "ae"):
+            entries = [
+                entry
+                for entry in manifest["primary"]
+                if entry["family"] == family and bool(entry["augmented"]) == augmented
+            ]
+            if entries:
+                finalists.append(max(entries, key=lambda entry: entry["roc_auc"]))
+    return finalists
+
+
+def run_seed_repeats(
+    study: PreparedStudy,
+    config: StudyConfig = StudyConfig(),
+    *,
+    run_dir: Path | None = None,
+    output_dir: Path | None = None,
+) -> dict[str, Winner]:
+    """Repeat the per-condition IF/AE finalists at the predefined seeds.
+
+    The finalists come from the frozen Phase 4 manifest; data, split,
+    augmentation, and preprocessing stay fixed while only the model seed
+    changes. Each repeat gets its own validation threshold and AE
+    early-stopping checkpoint. Seed-42 artifacts are never overwritten and no
+    best seed is selected.
+    """
+    run_dir = dataset.study_output_directory(run_dir or DEFAULT_RUN_DIR)
+    directory = dataset.study_output_directory(
+        output_dir or run_dir / SENSITIVITY_DIR_NAME
+    )
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = load_frozen_manifest(run_dir)
+
+    finalists = _overall_finalists(manifest)
+    if not finalists:
+        raise ValueError("The frozen manifest has no IF/AE finalists to repeat")
+
+    views_cache: dict[bool, ValidationViews] = {}
+    repeats: dict[str, Winner] = {}
+    for entry in finalists:
+        family = entry["family"]
+        augmented = bool(entry["augmented"])
+        recipe = entry["recipe"]
+        if augmented not in views_cache:
+            views_cache[augmented] = validation_views(study, augmented)
+        views = views_cache[augmented]
+        for seed in config.repeat_seeds:
+            detector, _ = _fit_detector(
+                family, recipe, study, config, seed, dict(entry["params"]), views
+            )
+            scores = _validation_scores(family, detector, views)
+            threshold_info = tune_threshold(
+                scores, views.y_val, config.precision_floor
+            )
+            winner = Winner(
+                family=family,
+                recipe=recipe,
+                augmented=augmented,
+                params=dict(entry["params"]),
+                roc_auc=float(roc_auc_score(views.y_val, scores)),
+                pr_auc=float(average_precision_score(views.y_val, scores)),
+                threshold=float(threshold_info["threshold"]),
+                threshold_info=threshold_info,
+                detector=detector,
+                seed=seed,
+            )
+            winner.artifact = (
+                directory
+                / f"seed_{seed}_{family}_{recipe}_{winner.condition}.joblib"
+            )
+            joblib.dump(detector, winner.artifact)
+            repeats[winner.id] = winner
+
+    updated = dict(manifest)
+    updated["sensitivity"] = [_winner_entry(winner) for winner in repeats.values()]
+    updated["sensitivity_frozen"] = True
+    (run_dir / "reporting_manifest.json").write_text(
+        json.dumps(_json_safe(updated), indent=2) + "\n"
+    )
+    logger.info("Locked %d seed-repeat artifacts in %s", len(repeats), directory)
+    return repeats
 
 
 def run_search(
