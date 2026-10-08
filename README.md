@@ -14,7 +14,7 @@ CheatDetect/
 │   ├── raw/                          # Raw CSV session files
 │   │   ├── mixed/                    # Sessions with cheating segments
 │   │   └── pure normal/              # Clean sessions
-│   └── processed/                    # Feature-engineered cache (.pkl)
+│   └── processed/                    # Regenerated split metadata (no caches)
 ├── best_models/                      # Serialized model + inference config
 ├── notebooks/                        # EDA + train/eval (jupytext .py ↔ .ipynb)
 ├── reports/                          # Generated plots and metrics
@@ -22,14 +22,15 @@ CheatDetect/
 ├── src/cheatdetect/
 │   ├── config.py                     # Static paths + ExperimentConfig
 │   ├── utils.py                      # _find_project_root
-│   ├── data/                         # Raw events → model-ready array
+│   ├── data/                         # Raw events → fixed-schema matrices
 │   │   ├── loader.py                 #   Load CSVs (single or directory)
 │   │   ├── cleaning.py               #   Raw session + feature-matrix cleaning
-│   │   ├── pipeline.py               #   load → clean → extract orchestration
 │   │   ├── build.py                  #   Column merging (window_switch_events)
-│   │   ├── transform.py              #   Log1pSkewed + find_skewed_features
-│   │   ├── selection.py              #   Zero-var + correlation feature selection
 │   │   ├── augment.py                #   Gaussian-noise augmentation
+│   │   ├── feature_schema.py         #   Frozen 25-source → 33-encoded schema
+│   │   ├── preprocessing.py          #   FeaturePreprocessor recipes + checks
+│   │   ├── paired.py                 #   Aligned flat/micro views per window
+│   │   ├── dataset.py                #   Manifest-guarded PreparedStudy builder
 │   │   └── features/
 │   │       ├── extract.py            #   Chunking & feature orchestration
 │   │       ├── mouse.py              #   Mouse kinematic features (24)
@@ -44,8 +45,12 @@ CheatDetect/
 │   ├── eval/                         # Evaluation
 │   │   ├── metrics.py                #   evaluate_model, compare_models
 │   │   └── plots.py                  #   PR/ROC/confusion/score-distributions
-│   ├── pipeline/
-│   │   └── train.py                  #   prepare_data + train_pipeline orchestration
+│   ├── pipeline/                     # Training orchestration
+│   │   ├── train.py                  #   prepare_data + train_pipeline
+│   │   ├── search.py                 #   Validation-only model search
+│   │   └── report.py                 #   Held-out test reporting
+│   ├── experiments/                  # Tracked experiment framework
+│   │   └── experiment_1/             #   Original-training audit + docs
 │   └── app/                          # FastAPI inference API
 │       ├── app.py                    #   FastAPI app, lifespan, routes
 │       ├── schemas.py                #   Pydantic request/response models
@@ -59,7 +64,11 @@ CheatDetect/
     └── test_api.py                   #   HTTP layer (TestClient)
 ```
 
-## Feature Set (34 features per chunk + label)
+## Feature Set
+
+Production models consume the frozen **25-source schema**: the extractor's 34
+raw features with blur/focus/tab-switch merged into `window_switch_events`, and
+`FeaturePreprocessor` encodes direction into 9 indicator columns (33 outputs).
 
 | Category | Features | Count |
 |---|---|---|
