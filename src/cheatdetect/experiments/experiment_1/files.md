@@ -41,12 +41,13 @@ The tracked files that belong to Experiment 1. **Status** is one of: `tracked`
 |---|---|---|
 | `src/cheatdetect/pipeline/search.py` | new | Validation-only search used by the runner and production |
 | `src/cheatdetect/pipeline/report.py` | new | Test reporting entry point (called after selection freezes) |
+| `src/cheatdetect/models/selection.py` | new | Ordered candidate sweep: ROC-AUC selection, first-candidate tie |
 
-## Planned (Study Phase 3+)
+## Experiment 1 runner (Study Phase 3)
 
 | File | Status | Role |
 |---|---|---|
-| `src/cheatdetect/experiments/experiment_1/config.py` | planned | Frozen `StudyConfig`: recipes, grids, seeds, budgets |
-| `src/cheatdetect/experiments/experiment_1/runner.py` | planned | Validation-only grid runner; per-candidate artifacts |
+| `src/cheatdetect/experiments/experiment_1/config.py` | new | Frozen `StudyConfig`: recipes, grids, seeds, budgets |
+| `src/cheatdetect/experiments/experiment_1/runner.py` | new | Validation-only grid runner; winners, ensembles, frozen manifest |
 | `src/cheatdetect/experiments/experiment_1/reporting.py` | planned | Final test reporting behind a frozen manifest |
 | `src/cheatdetect/experiments/__main__.py` | planned | Shared CLI (`python -m cheatdetect.experiments --phase N`) |

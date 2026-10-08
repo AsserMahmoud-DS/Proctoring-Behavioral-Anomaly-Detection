@@ -212,7 +212,12 @@ def prepare_study(
     return PreparedStudy(manifest, raw, preprocessors, transformed, centers, pd.concat(session_reports, ignore_index=True))
 
 
-def _output_directory(directory: Path) -> Path:
+def study_output_directory(directory: Path) -> Path:
+    """Resolve a study output directory, rejecting anything outside artifacts.
+
+    Shared by the prepared-bundle helpers and the study runner so experiment
+    outputs can never overwrite production model/report directories.
+    """
     directory = Path(directory).resolve()
     if not directory.is_relative_to(ARTIFACT_ROOT.resolve()):
         raise ValueError("Study artifacts must stay inside study/artifacts")
@@ -220,7 +225,7 @@ def _output_directory(directory: Path) -> Path:
 
 
 def save_prepared(study: PreparedStudy, directory: Path) -> None:
-    directory = _output_directory(directory)
+    directory = study_output_directory(directory)
     directory.mkdir(parents=True, exist_ok=True)
     joblib.dump(study, directory / "prepared.joblib")
     (directory / "manifest.json").write_text(json.dumps(study.manifest, indent=2) + "\n")
@@ -234,7 +239,7 @@ def save_prepared(study: PreparedStudy, directory: Path) -> None:
 
 def load_prepared(directory: Path, expected_manifest: dict) -> PreparedStudy:
     """Load trusted local joblib only after matching fresh input/specification hashes."""
-    directory = _output_directory(directory)
+    directory = study_output_directory(directory)
     saved_manifest = json.loads((directory / "manifest.json").read_text())
     if saved_manifest != expected_manifest:
         raise ValueError("Prepared study manifest does not match current inputs/specification")
