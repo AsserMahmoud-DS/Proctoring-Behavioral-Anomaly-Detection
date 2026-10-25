@@ -82,6 +82,13 @@ def sweep_candidates(
             }
         )
         rows.append(row)
+        logger.debug(
+            "Candidate %s -> roc_auc=%.4f pr_auc=%.4f (%.1fs)",
+            candidate,
+            roc_auc,
+            row["pr_auc"],
+            row["seconds"],
+        )
         if roc_auc > best_score:
             best_score = roc_auc
             best_detector = fitted

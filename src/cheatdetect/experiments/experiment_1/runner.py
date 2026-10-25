@@ -49,6 +49,7 @@ from cheatdetect.models import (
 from cheatdetect.models.ensemble import grid_search as ensemble_grid_search
 from cheatdetect.models.selection import sweep_candidates
 
+from . import analysis
 from .config import (
     AE_RECIPES,
     AUGMENTATION_CONDITIONS,
@@ -132,9 +133,14 @@ class StudyRun:
 
 
 def frozen_split() -> dict:
-    """Return the Phase 1 audit's frozen session assignment."""
+    """Return the Phase 1 audit's frozen session assignment.
+
+    The audit manifest stores the four ordered file lists alongside scalar
+    split settings (seed and fractions); only the lists are returned so the
+    fresh ``input_manifest`` comparison sees exactly the frozen keys.
+    """
     manifest = json.loads((AUDIT_DIR / "manifest.json").read_text())
-    return {key: list(names) for key, names in manifest["split"].items()}
+    return {key: list(manifest["split"][key]) for key in dataset.SPLIT_KEYS}
 
 
 def build_study(
@@ -328,6 +334,14 @@ def _run_cell(
     views: ValidationViews,
     directory: Path,
 ) -> tuple[Winner | None, list[dict]]:
+    condition = CONDITION_NAMES[augmented]
+    logger.info(
+        "Fitting %s/%s (%s): %d candidates",
+        family,
+        recipe,
+        condition,
+        len(cell_candidates),
+    )
     evaluate = _evaluator(family, recipe, study, config, views)
     detector, results = sweep_candidates(cell_candidates, evaluate, views.y_val)
     rows = [
@@ -336,7 +350,11 @@ def _run_cell(
     ]
     if detector is None:
         logger.warning(
-            "No valid candidate for %s/%s (%s)", family, recipe, CONDITION_NAMES[augmented]
+            "No valid candidate for %s/%s (%s); all %d candidates failed",
+            family,
+            recipe,
+            condition,
+            len(cell_candidates),
         )
         return None, rows
 
@@ -359,6 +377,14 @@ def _run_cell(
     )
     winner.artifact = directory / f"winner_{family}_{recipe}_{winner.condition}.joblib"
     joblib.dump(detector, winner.artifact)
+    logger.info(
+        "Locked %s/%s (%s): roc_auc=%.4f threshold=%.4f",
+        family,
+        recipe,
+        condition,
+        winner.roc_auc,
+        winner.threshold,
+    )
     return winner, rows
 
 
@@ -418,7 +444,57 @@ def _lock_ensemble(
     )
     winner.artifact = directory / f"winner_ensemble_{winner.condition}.joblib"
     joblib.dump(ensemble, winner.artifact)
+    logger.info(
+        "Locked ensemble (%s): %s + %s at if_weight=%.2f (roc_auc=%.4f)",
+        winner.condition,
+        if_winner.recipe,
+        ocsvm_winner.recipe,
+        ensemble.if_weight,
+        winner.roc_auc,
+    )
     return winner
+
+
+def _missing_cells(
+    candidates_df: pd.DataFrame,
+    winners: Mapping[str, Winner],
+    expected_cells: list[tuple[str, str, bool]],
+) -> list[dict]:
+    """Recipe/condition cells that produced no valid candidate, with counts."""
+    found = {
+        (winner.family, winner.recipe, winner.augmented) for winner in winners.values()
+    }
+    missing = []
+    for family, recipe, augmented in expected_cells:
+        if (family, recipe, augmented) in found:
+            continue
+        if candidates_df.empty:
+            cell_rows = candidates_df
+        else:
+            cell_rows = candidates_df[
+                (candidates_df["family"] == family)
+                & (candidates_df["recipe"] == recipe)
+                & (candidates_df["augmented"].astype(bool) == augmented)
+            ]
+        failures = int((cell_rows["status"] == "failed").sum()) if len(cell_rows) else 0
+        missing.append(
+            {
+                "family": family,
+                "recipe": recipe,
+                "condition": CONDITION_NAMES[augmented],
+                "candidates": int(len(cell_rows)),
+                "failures": failures,
+            }
+        )
+        logger.warning(
+            "Missing cell %s/%s (%s): %d candidates, %d failed",
+            family,
+            recipe,
+            CONDITION_NAMES[augmented],
+            len(cell_rows),
+            failures,
+        )
+    return missing
 
 
 def _json_safe(value):
@@ -463,6 +539,7 @@ def _freeze_manifest(
     config: StudyConfig,
     winners: Mapping[str, Winner],
     ensembles: Mapping[str, Winner],
+    missing_cells: list[dict],
 ) -> dict:
     return {
         "version": 1,
@@ -473,6 +550,7 @@ def _freeze_manifest(
         "split": study.manifest["split"],
         "primary": [_winner_entry(winner) for winner in winners.values()]
         + [_winner_entry(winner) for winner in ensembles.values()],
+        "missing_cells": missing_cells,
         "sensitivity": [],
     }
 
@@ -527,6 +605,12 @@ def run_seed_repeats(
     )
     directory.mkdir(parents=True, exist_ok=True)
     manifest = load_frozen_manifest(run_dir)
+    if manifest.get("missing_cells"):
+        logger.warning(
+            "Frozen manifest reports %d missing cell(s); resolve them before "
+            "approving final reporting",
+            len(manifest["missing_cells"]),
+        )
 
     finalists = _overall_finalists(manifest)
     if not finalists:
@@ -604,10 +688,15 @@ def run_search(
     pools = _candidate_pools(study, config, candidates)
     rows: list[dict] = []
     winners: dict[str, Winner] = {}
+    expected_cells: list[tuple[str, str, bool]] = []
     for augmented in AUGMENTATION_CONDITIONS:
         views = validation_views(study, augmented)
         for family, pool in pools.items():
+            pool_recipes = {candidate["recipe"] for candidate in pool}
             for recipe in FAMILY_RECIPES.get(family, ()):
+                if recipe not in pool_recipes:
+                    continue
+                expected_cells.append((family, recipe, augmented))
                 cell = [candidate for candidate in pool if candidate["recipe"] == recipe]
                 if not cell:
                     continue
@@ -625,11 +714,13 @@ def run_search(
             ensembles[ensemble.id] = ensemble
 
     candidates_df = pd.DataFrame(rows)
-    manifest = _freeze_manifest(study, config, winners, ensembles)
+    missing_cells = _missing_cells(candidates_df, winners, expected_cells)
+    manifest = _freeze_manifest(study, config, winners, ensembles, missing_cells)
     candidates_df.to_csv(directory / "candidates.csv", index=False)
     (directory / "reporting_manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n"
     )
+    analysis.write_comparisons(directory, candidates_df, manifest)
     logger.info(
         "Locked %d recipe winners and %d ensembles in %s",
         len(winners),

@@ -2,6 +2,7 @@
 
 import ast
 import dataclasses
+import json
 from pathlib import Path
 
 import joblib
@@ -11,6 +12,7 @@ import pytest
 
 import cheatdetect.experiments.experiment_1.runner as runner
 from cheatdetect.data.feature_schema import SOURCE_FEATURES
+from cheatdetect.experiments.experiment_1 import analysis
 
 from study_helpers import AE_CANDIDATES, IF_CANDIDATES, OCSVM_CANDIDATES
 
@@ -44,11 +46,17 @@ def test_run_search_locks_recipe_winners_and_ensembles(study_env):
                                   "ensemble:IF-raw+SVM-base:aug_on"}
     assert len(run.manifest["primary"]) == 8
     assert run.manifest["frozen"] is True
+    assert run.manifest["missing_cells"] == []
     assert (run.directory / "candidates.csv").is_file()
     assert (run.directory / "reporting_manifest.json").is_file()
     assert {"n_iter", "converged", "seconds", "pr_auc_baseline"} <= set(
         run.candidates.columns
     )
+    for name in analysis.COMPARISON_FILES:
+        assert (run.directory / name).is_file()
+    matched = pd.read_csv(run.directory / "augmentation_matched.csv")
+    assert set(matched["family"]) <= {"if", "ocsvm", "ae"}
+    assert {"delta_roc_auc", "paired"} <= set(matched.columns)
 
     for winner in list(run.winners.values()) + list(run.ensembles.values()):
         assert winner.artifact.is_file()
@@ -125,6 +133,24 @@ def test_failed_candidate_is_recorded_and_not_substituted(study_env):
     assert len(failed) == 2
     assert failed["error"].str.contains("nu").all()
     assert run.candidates["status"].eq("ok").sum() == 2
+    assert run.manifest["missing_cells"] == []
+
+
+def test_missing_cells_are_recorded_in_the_manifest(study_env):
+    failing = [
+        {"recipe": "SVM-base", "nu": 2.0, "gamma": 0.1, "kernel": "rbf",
+         "tol": 1e-3, "max_iter": -1},
+    ]
+    run = run_tiny(study_env, {"ocsvm": failing}, output_name="missing_cells_run")
+
+    assert run.winners == {}
+    assert len(run.manifest["missing_cells"]) == 2  # aug off + aug on
+    for cell in run.manifest["missing_cells"]:
+        assert cell["family"] == "ocsvm"
+        assert cell["recipe"] == "SVM-base"
+        assert cell["condition"] in {"aug_off", "aug_on"}
+        assert cell["candidates"] == 1
+        assert cell["failures"] == 1
 
 
 def test_ae_candidates_train_and_are_locked(study_env):
@@ -149,6 +175,34 @@ def test_runner_rejects_outputs_outside_study_artifacts(study_env):
             candidates={"if": IF_CANDIDATES},
             output_dir=study_env[-1] / "production_models",
         )
+
+
+def test_frozen_split_reads_only_the_frozen_assignments(tmp_path, monkeypatch):
+    audit = tmp_path / "audit"
+    audit.mkdir()
+    (audit / "manifest.json").write_text(
+        json.dumps(
+            {
+                "split": {
+                    "normal_train": ["a.csv"],
+                    "normal_val": ["b.csv"],
+                    "mixed_val": ["c.csv"],
+                    "mixed_test": ["d.csv"],
+                    "random_state": 42,
+                    "normal_val_size": 0.2,
+                    "mixed_val_size": 0.3,
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(runner, "AUDIT_DIR", audit)
+
+    assert runner.frozen_split() == {
+        "normal_train": ["a.csv"],
+        "normal_val": ["b.csv"],
+        "mixed_val": ["c.csv"],
+        "mixed_test": ["d.csv"],
+    }
 
 
 def test_load_study_rejects_a_stale_manifest(study_env):
