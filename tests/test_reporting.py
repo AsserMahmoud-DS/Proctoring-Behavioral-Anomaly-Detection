@@ -4,6 +4,7 @@ import ast
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from cheatdetect.experiments.experiment_1 import reporting, runner
@@ -59,8 +60,23 @@ def test_phase6_reports_primary_and_sensitivity(frozen_run):
     assert len(results) == len(run.manifest["primary"]) + 4  # 2 IF cells x 2 seeds
     assert summary.index.is_unique
     assert {"roc_auc", "pr_auc", "pr_auc_baseline", "threshold"} <= set(summary.columns)
+    assert {"test_prevalence", "param_n_estimators", "param_contamination"} <= set(
+        summary.columns
+    )
+    assert summary["test_prevalence"].iloc[0] == pytest.approx(
+        float(study.raw["mixed_test"].labels.mean())
+    )
+
     output = run.directory / "phase_06_reporting"
     assert (output / "test_results.csv").is_file()
+    assert (output / "dataset_summary.csv").is_file()
+    assert list((output / "figures").glob("*.png"))
+
+    dataset = pd.read_csv(output / "dataset_summary.csv").set_index("partition")
+    assert dataset.loc["mixed_test", "prevalence"] > 0
+    assert dataset.loc["train_original", "contributing_sessions"] > 0
+    assert dataset.loc["train_synthetic", "parent_windows"] > 0
+
     payload = json.loads((output / "test_results.json").read_text())
     assert len(payload) == len(results)
     assert all("seed" in row for row in payload)
