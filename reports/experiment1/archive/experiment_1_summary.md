@@ -3,6 +3,8 @@
 > `../03_experiments_and_models.md`, and
 > `../04_selected_models_and_conclusions.md`.
 
+> Historical reference: original tracking/status statements predate snapshot preservation. Start with the [final report index](../README.md) and [reproduction guide](../REPRODUCING.md) for current navigation and prerequisites.
+
 # Experiment 1 — Behavioral anomaly detection: complete study report
 
 **Report date:** 2026-10-09  

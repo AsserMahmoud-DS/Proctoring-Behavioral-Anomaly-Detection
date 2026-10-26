@@ -1,4 +1,25 @@
-# CheatDetect: Behavioral Anomaly Detection
+# Experiment 1 — Publication snapshot
+
+This branch preserves the Experiment 1 preprocessing and model feasibility study.
+Start with the [final report](reports/experiment1/README.md), then consult the
+[reproduction guide](reports/experiment1/REPRODUCING.md) and
+[file inventory](src/cheatdetect/experiments/experiment_1/files.md).
+The application description below provides repository context; these experiment
+results do not automatically replace the deployed model in `best_models/`.
+
+| Location | Purpose |
+|---|---|
+| `src/cheatdetect/experiments/experiment_1/` | Experiment configuration, execution, analysis, and reporting code |
+| `src/cheatdetect/` and `tests/` | Shared implementation and regression checks |
+| [study/](study/README.md) | Preserved notebooks, scientific protocol, findings, and original run artifacts |
+| [reports/experiment1/](reports/experiment1/README.md) | Final report and publication tables/figures |
+| [Engineering phase plan](plans/experiment_1_phases.md) | Historical integration phases A–E |
+
+Study phases 0–6 describe the scientific workflow; engineering phases A–E describe
+its implementation. Historical checklists record earlier development states.
+The final report and preserved outputs describe what was actually executed.
+Raw sessions remain excluded from Git and require a separate private backup
+outside this checkout before local cleanup. No backup is created by this snapshot.
 
 Detects cheating behavior through mouse and keyboard actions collected from students during live exam sessions.
 
@@ -17,8 +38,9 @@ CheatDetect/
 │   └── processed/                    # Regenerated split metadata (no caches)
 ├── best_models/                      # Serialized model + inference config
 ├── notebooks/                        # EDA + train/eval (jupytext .py ↔ .ipynb)
-├── reports/                          # Generated plots and metrics
-├── plans/                            # Architecture and design docs
+├── study/                            # Preserved Experiment 1 research evidence
+├── reports/                          # Final report, figures, and metrics
+├── plans/                            # Historical Experiment 1 engineering plan
 ├── src/cheatdetect/
 │   ├── config.py                     # Static paths + ExperimentConfig
 │   ├── utils.py                      # _find_project_root
@@ -98,7 +120,7 @@ Reusable behavioral preprocessing and aligned extraction are available from
 - `load_parent_sessions`: ordered loading with explicit zero-window exclusion
   reports; fails if a required partition has no usable windows.
 
-These implementations and their regression tests are tracked. Local study
+These implementations and their regression tests are tracked. Experiment
 orchestration imports them; no production module imports `study/`. Existing
 `train_pipeline` defaults and saved deployed models are not automatically replaced
 by an experimental recipe. Model-specific wiring and recipe selection remain

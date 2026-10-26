@@ -59,10 +59,10 @@ preprocessing-fit rules, and selection criteria.
 | 0 | Persist the phased plan | Done |
 | 1 | Original-training audit + specification freeze | Done |
 | 2 | Data & preprocessing readiness (frozen recipes, paired aug off/on) | Done |
-| 3 | Model controls + isolated validation-only study runner | Not started |
-| 4 | Seed-42 full paired grids (204 fits); lock 18 recipe winners + 2 ensembles | Not started |
-| 5 | Locked-finalist seed sensitivity (8 fits; 212 total) | Not started |
-| 6 | Final test reporting and interpretation | Not started |
+| 3 | Model controls + isolated validation-only study runner | Complete |
+| 4 | Seed-42 full paired grids (204 fits); lock 18 recipe winners + 2 ensembles | Complete |
+| 5 | Locked-finalist seed sensitivity (8 fits; 212 total) | Complete |
+| 6 | Final test reporting and interpretation | Complete |
 
 ## Scope / non-goals
 
@@ -72,12 +72,12 @@ platform. No automatic deployment promotion.
 
 ## Current status
 
-- Study Phases 1–2 complete: the original-training audit and the paired
-  readiness bundle are built and independently verified.
-- Integration Phase A complete: reusable experiment code is now tracked under
-  `src/cheatdetect/` (`data/dataset.py`, `experiments/experiment_1/audit.py`),
-  so a clean clone can reproduce the study.
-- The frozen readiness bundle predates the Phase A code move; rebuild it when the
-  study next runs so its provenance hashes match the tracked sources.
+The audit, preparation, validation study, seed repeats, and final reporting have
+been completed. The [final report](../../../../reports/experiment1/README.md)
+documents actual results and limitations. Original artifacts are preserved under
+`study/artifacts/`, including the historical readiness bundle; do not rebuild
+original outputs simply to review them.
 
-See `files.md` for the file inventory.
+See the [reproduction guide](../../../../reports/experiment1/REPRODUCING.md) for
+private raw-data prerequisites and portability limits, and [files.md](files.md)
+for the inventory. Study phases 0–6 are distinct from engineering phases A–E.

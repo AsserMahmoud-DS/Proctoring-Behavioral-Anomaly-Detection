@@ -350,5 +350,6 @@ thresholds, artifacts), `tables/augmentation_matched.csv`,
 `tables/augmentation_winners.csv`, `tables/depth_comparison.csv`,
 `tables/test_results.csv` (28 test rows), `tables/dataset_summary.csv`,
 `tables/final_metrics.csv`. Source artifacts and figures remain under
-`study/artifacts/phase_04_study/` (locally generated). Reproduction commands are
-in `04_selected_models_and_conclusions.md` §6.
+`study/artifacts/phase_04_study/` (original generated outputs preserved in this
+snapshot). Reproduction commands are in
+`04_selected_models_and_conclusions.md` §6.

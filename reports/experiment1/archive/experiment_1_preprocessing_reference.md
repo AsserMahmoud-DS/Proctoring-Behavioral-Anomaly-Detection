@@ -2,6 +2,8 @@
 > report is `../03_experiments_and_models.md` (preprocessing and trials) and
 > `../04_selected_models_and_conclusions.md` (final selections).
 
+> Historical reference: original tracking/status statements predate snapshot preservation. Start with the [final report index](../README.md) and [reproduction guide](../REPRODUCING.md) for current navigation and prerequisites.
+
 # Experiment 1 — Preprocessing rationale and trial reference
 
 **Date:** 2026-10-10  
@@ -511,16 +513,16 @@ The choices and trial counts are verified against this repository's implementati
 
 ### Repository evidence
 
-- [Fixed feature/transform blocks](../src/cheatdetect/data/feature_schema.py).
-- [Implemented nonlinear/scaling operations](../src/cheatdetect/data/preprocessing.py).
-- [Frozen Experiment 1 recipe/model grids](../src/cheatdetect/experiments/experiment_1/config.py).
-- [Study evaluator and processor reuse](../src/cheatdetect/experiments/experiment_1/runner.py).
-- [Original parent-feature audit](../study/artifacts/phase_01_audit/parent_features.csv) and [micro-feature audit](../study/artifacts/phase_01_audit/micro_features.csv).
-- [All main candidates](../study/artifacts/phase_04_study/candidates.csv).
-- [Selected parameters and thresholds](../study/artifacts/phase_04_study/reporting_manifest.json).
-- [Matched augmentation comparison](../study/artifacts/phase_04_study/augmentation_matched.csv).
-- [Matched depth comparison](../study/artifacts/phase_04_study/depth_comparison.csv).
-- [Saved test results](../study/artifacts/phase_04_study/phase_06_reporting/test_results.csv).
+- [Fixed feature/transform blocks](../../../src/cheatdetect/data/feature_schema.py).
+- [Implemented nonlinear/scaling operations](../../../src/cheatdetect/data/preprocessing.py).
+- [Frozen Experiment 1 recipe/model grids](../../../src/cheatdetect/experiments/experiment_1/config.py).
+- [Study evaluator and processor reuse](../../../src/cheatdetect/experiments/experiment_1/runner.py).
+- [Original parent-feature audit](../../../study/artifacts/phase_01_audit/parent_features.csv) and [micro-feature audit](../../../study/artifacts/phase_01_audit/micro_features.csv).
+- [All main candidates](../../../study/artifacts/phase_04_study/candidates.csv).
+- [Selected parameters and thresholds](../../../study/artifacts/phase_04_study/reporting_manifest.json).
+- [Matched augmentation comparison](../../../study/artifacts/phase_04_study/augmentation_matched.csv).
+- [Matched depth comparison](../../../study/artifacts/phase_04_study/depth_comparison.csv).
+- [Saved test results](../../../study/artifacts/phase_04_study/phase_06_reporting/test_results.csv).
 - [Full Experiment 1 report](experiment_1_summary.md) for the full methodological/results account and artifact hashes.
 
 ### Official operator references

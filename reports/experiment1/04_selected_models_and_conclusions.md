@@ -172,8 +172,11 @@ Figures are in `figures/`.
 
 ## 6. Provenance and reproduction
 
-Frozen inputs and outputs of this run (local paths; generated artifacts are not
-committed to Git):
+See the [reproduction guide](REPRODUCING.md) for private data requirements,
+checksum verification, and portability limits before executing any commands.
+
+Original inputs and outputs selected for preservation in this snapshot
+(paths are relative to the repository root unless noted):
 
 | Artifact | Role |
 |---|---|
