@@ -1,0 +1,49 @@
+{
+  "normal_train": [
+    "normal - Mohamed Hossam Eldin Ahmed Youssef.csv",
+    "omar hesham ibrahim- normal.csv",
+    "boles medhat- normal.csv",
+    "normal 3mira - \u064a\u0648\u0633\u0641 \u0645\u062d\u0645\u062f \u0645\u062d\u0645\u0648\u062f \u0632\u0643\u064a.csv",
+    "normal- Ibrahim Sayed2.csv",
+    "shahd khaled muhammad - normal.csv",
+    "Normal - Mohamed Hazem.csv",
+    "normal - Omar Ahmed Fouad.csv",
+    "youssef ahmed- normal.csv",
+    "normal  - Youssef Emira.csv",
+    "normal - omar hisham.csv",
+    "normal - Ibrahim Sayed.csv",
+    "normal - Sohybe Ibrahim Amer.csv",
+    "normal behaviour - Abdallah.csv",
+    "normal - Hussein Elhaddad.csv"
+  ],
+  "normal_val": [
+    "3mira tany - normal.csv",
+    "normal - El Farouk Omar.csv",
+    "normal - Ziad Osama Mohamed.csv",
+    "3mira- normal.csv"
+  ],
+  "mixed_val": [
+    "mixed - Mohamed Hossam Eldin Ahmed Youssef.csv",
+    "mixed - Youssef Emira.csv",
+    "mixed - omar hisham.csv",
+    "boles medhat- mixed.csv",
+    "mixed - Hussein Elhaddad.csv"
+  ],
+  "mixed_test": [
+    "3mira tany - mixed.csv",
+    "3mira- mixed.csv",
+    "mixed - El Farouk Omar.csv",
+    "shahd khaled muhammad - mixed.csv",
+    "mixed - Ziad Osama Mohamed.csv",
+    "omar hesham ibrahim- mixed.csv",
+    "mixed - Omar Ahmed Fouad.csv",
+    "mixed 3mira - \u064a\u0648\u0633\u0641 \u0645\u062d\u0645\u062f \u0645\u062d\u0645\u0648\u062f \u0632\u0643\u064a.csv",
+    "Normal + Cheat - Mohamed Hazem.csv",
+    "mixed - Sohybe Ibrahim Amer.csv",
+    "youssef ahmed- mixed.csv",
+    "cheat - Abdallah.csv"
+  ],
+  "random_state": 42,
+  "normal_val_size": 0.2,
+  "mixed_val_size": 0.3
+}

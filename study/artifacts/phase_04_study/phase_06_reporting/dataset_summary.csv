@@ -1,0 +1,6 @@
+partition,assigned_sessions,contributing_sessions,parent_windows,anomalous_windows,prevalence
+train_original,15,15,662,0,0.0
+train_synthetic,15,15,1324,0,0.0
+normal_val,4,4,197,0,0.0
+mixed_val,5,5,196,82,0.41836734693877553
+mixed_test,12,10,366,205,0.5601092896174863

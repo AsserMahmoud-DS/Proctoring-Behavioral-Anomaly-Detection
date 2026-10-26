@@ -1,0 +1,904 @@
+{
+  "audit_version": 2,
+  "split": {
+    "normal_train": [
+      "normal - Mohamed Hossam Eldin Ahmed Youssef.csv",
+      "omar hesham ibrahim- normal.csv",
+      "boles medhat- normal.csv",
+      "normal 3mira - \u064a\u0648\u0633\u0641 \u0645\u062d\u0645\u062f \u0645\u062d\u0645\u0648\u062f \u0632\u0643\u064a.csv",
+      "normal- Ibrahim Sayed2.csv",
+      "shahd khaled muhammad - normal.csv",
+      "Normal - Mohamed Hazem.csv",
+      "normal - Omar Ahmed Fouad.csv",
+      "youssef ahmed- normal.csv",
+      "normal  - Youssef Emira.csv",
+      "normal - omar hisham.csv",
+      "normal - Ibrahim Sayed.csv",
+      "normal - Sohybe Ibrahim Amer.csv",
+      "normal behaviour - Abdallah.csv",
+      "normal - Hussein Elhaddad.csv"
+    ],
+    "normal_val": [
+      "3mira tany - normal.csv",
+      "normal - El Farouk Omar.csv",
+      "normal - Ziad Osama Mohamed.csv",
+      "3mira- normal.csv"
+    ],
+    "mixed_val": [
+      "mixed - Mohamed Hossam Eldin Ahmed Youssef.csv",
+      "mixed - Youssef Emira.csv",
+      "mixed - omar hisham.csv",
+      "boles medhat- mixed.csv",
+      "mixed - Hussein Elhaddad.csv"
+    ],
+    "mixed_test": [
+      "3mira tany - mixed.csv",
+      "3mira- mixed.csv",
+      "mixed - El Farouk Omar.csv",
+      "shahd khaled muhammad - mixed.csv",
+      "mixed - Ziad Osama Mohamed.csv",
+      "omar hesham ibrahim- mixed.csv",
+      "mixed - Omar Ahmed Fouad.csv",
+      "mixed 3mira - \u064a\u0648\u0633\u0641 \u0645\u062d\u0645\u062f \u0645\u062d\u0645\u0648\u062f \u0632\u0643\u064a.csv",
+      "Normal + Cheat - Mohamed Hazem.csv",
+      "mixed - Sohybe Ibrahim Amer.csv",
+      "youssef ahmed- mixed.csv",
+      "cheat - Abdallah.csv"
+    ],
+    "random_state": 42,
+    "normal_val_size": 0.2,
+    "mixed_val_size": 0.3
+  },
+  "augmentation": false,
+  "angle_difference_convention": "wrapped_minus_pi_to_pi",
+  "read_held_out_contents": false,
+  "legacy_caches_used": false,
+  "source_features": [
+    "elapsed_time",
+    "copy_events",
+    "paste_events",
+    "mouse_path_length",
+    "mouse_straightness",
+    "mouse_velocity_mean",
+    "mouse_acceleration_mean",
+    "mouse_jerk_mean",
+    "mouse_direction_changes",
+    "mouse_click_count",
+    "mouse_idle_time_ratio",
+    "mouse_angular_velocity_mean",
+    "mouse_angular_velocity_std",
+    "mouse_angular_velocity_min",
+    "mouse_curvature_mean",
+    "mouse_curvature_std",
+    "mouse_curvature_min",
+    "mouse_direction_class",
+    "mouse_sum_of_angles",
+    "mouse_largest_deviation",
+    "mouse_sharp_angles",
+    "keyboard_typing_rate",
+    "keyboard_burst_count",
+    "keyboard_pause_count",
+    "window_switch_events"
+  ],
+  "output_features": [
+    "elapsed_time",
+    "copy_events",
+    "paste_events",
+    "mouse_path_length",
+    "mouse_straightness",
+    "mouse_velocity_mean",
+    "mouse_acceleration_mean",
+    "mouse_jerk_mean",
+    "mouse_direction_changes",
+    "mouse_click_count",
+    "mouse_idle_time_ratio",
+    "mouse_angular_velocity_mean",
+    "mouse_angular_velocity_std",
+    "mouse_angular_velocity_min",
+    "mouse_curvature_mean",
+    "mouse_curvature_std",
+    "mouse_curvature_min",
+    "mouse_sum_of_angles",
+    "mouse_largest_deviation",
+    "mouse_sharp_angles",
+    "keyboard_typing_rate",
+    "keyboard_burst_count",
+    "keyboard_pause_count",
+    "window_switch_events",
+    "mouse_direction_class_0",
+    "mouse_direction_class_1",
+    "mouse_direction_class_2",
+    "mouse_direction_class_3",
+    "mouse_direction_class_4",
+    "mouse_direction_class_5",
+    "mouse_direction_class_6",
+    "mouse_direction_class_7",
+    "mouse_direction_class_8"
+  ],
+  "encoded_dimension": 33,
+  "parent_geometry": {
+    "events": 50,
+    "stride": 25
+  },
+  "micro_geometry": {
+    "events": 10,
+    "stride": 5,
+    "timesteps": 9
+  },
+  "parent_rows": 662,
+  "micro_rows_with_overlap": 5958,
+  "original_training_sessions": 15,
+  "if_effective_max_samples": {
+    "128": 128,
+    "256": 256
+  },
+  "main_model_fits_planned": 204,
+  "total_model_fits_planned": 212,
+  "signed_log_features": [
+    "mouse_jerk_mean",
+    "mouse_angular_velocity_mean",
+    "mouse_angular_velocity_min"
+  ],
+  "diagnostic_fit_parameters": {
+    "parent_base": {
+      "scaler": {
+        "elapsed_time": {
+          "mean": 23.34164652567976,
+          "scale": 15.3494534494
+        },
+        "mouse_path_length": {
+          "mean": 1365.4055144124784,
+          "scale": 1047.8826116781797
+        },
+        "mouse_straightness": {
+          "mean": 0.2227478656355587,
+          "scale": 0.25474815790190086
+        },
+        "mouse_velocity_mean": {
+          "mean": 370.51997655322793,
+          "scale": 429.45893418538674
+        },
+        "mouse_acceleration_mean": {
+          "mean": 17135.76593374001,
+          "scale": 321630.72847223683
+        },
+        "mouse_jerk_mean": {
+          "mean": 12986335.879603665,
+          "scale": 327036804.84572375
+        },
+        "mouse_direction_changes": {
+          "mean": 8.069486404833837,
+          "scale": 5.730187675253038
+        },
+        "mouse_click_count": {
+          "mean": 2.5876132930513593,
+          "scale": 2.3288608359144014
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.3804808072734876,
+          "scale": 0.27016639112932767
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.277707001701874,
+          "scale": 5.182212176529566
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 10.859754400184077,
+          "scale": 30.735177641429463
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -30.83396639103683,
+          "scale": 103.38582395098076
+        },
+        "mouse_curvature_mean": {
+          "mean": 5.372387740691774,
+          "scale": 25.11450822394914
+        },
+        "mouse_curvature_std": {
+          "mean": 21.777793576552597,
+          "scale": 94.50161930421615
+        },
+        "mouse_curvature_min": {
+          "mean": 0.00046730392254303304,
+          "scale": 0.004220828664153552
+        },
+        "mouse_sum_of_angles": {
+          "mean": 20.070789558229546,
+          "scale": 13.447228833097128
+        },
+        "mouse_largest_deviation": {
+          "mean": 224.4535464708558,
+          "scale": 189.8984134150686
+        },
+        "mouse_sharp_angles": {
+          "mean": 26.583081570996978,
+          "scale": 16.62138044161456
+        },
+        "keyboard_typing_rate": {
+          "mean": 7.923921214953429,
+          "scale": 94.95877636931529
+        },
+        "keyboard_burst_count": {
+          "mean": 7.68429003021148,
+          "scale": 9.140314125932234
+        },
+        "keyboard_pause_count": {
+          "mean": 2.4425981873111784,
+          "scale": 3.1120365513850947
+        }
+      }
+    },
+    "parent_log": {
+      "scaler": {
+        "elapsed_time": {
+          "mean": 3.035759504138776,
+          "scale": 0.544742585214671
+        },
+        "mouse_path_length": {
+          "mean": 6.093507058240662,
+          "scale": 2.568012962540535
+        },
+        "mouse_straightness": {
+          "mean": 0.2227478656355587,
+          "scale": 0.25474815790190086
+        },
+        "mouse_velocity_mean": {
+          "mean": 4.994363090504401,
+          "scale": 2.1416386532628477
+        },
+        "mouse_acceleration_mean": {
+          "mean": 6.941157410552531,
+          "scale": 2.9816324801755845
+        },
+        "mouse_jerk_mean": {
+          "mean": 4.5380169300737725,
+          "scale": 6.37103468870661
+        },
+        "mouse_direction_changes": {
+          "mean": 8.069486404833837,
+          "scale": 5.730187675253038
+        },
+        "mouse_click_count": {
+          "mean": 2.5876132930513593,
+          "scale": 2.3288608359144014
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.3804808072734876,
+          "scale": 0.27016639112932767
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.0649880252745765,
+          "scale": 0.9746166521104578
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 1.8598388680783977,
+          "scale": 0.9974710861614371
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -2.5344416540983357,
+          "scale": 1.3832250393131402
+        },
+        "mouse_curvature_mean": {
+          "mean": 0.9362550929187855,
+          "scale": 0.9739318737362241
+        },
+        "mouse_curvature_std": {
+          "mean": 1.633003261094866,
+          "scale": 1.4049701426399557
+        },
+        "mouse_curvature_min": {
+          "mean": 0.00045857582635777156,
+          "scale": 0.004118848291718532
+        },
+        "mouse_sum_of_angles": {
+          "mean": 20.070789558229546,
+          "scale": 13.447228833097128
+        },
+        "mouse_largest_deviation": {
+          "mean": 4.425039815097868,
+          "scale": 2.0869504452532297
+        },
+        "mouse_sharp_angles": {
+          "mean": 26.583081570996978,
+          "scale": 16.62138044161456
+        },
+        "keyboard_typing_rate": {
+          "mean": 0.8049822748600104,
+          "scale": 0.7979144261103889
+        },
+        "keyboard_burst_count": {
+          "mean": 1.481363408304006,
+          "scale": 1.254558959599111
+        },
+        "keyboard_pause_count": {
+          "mean": 0.8855573628143144,
+          "scale": 0.8260667634545998
+        }
+      }
+    },
+    "parent_yj": {
+      "elapsed_time": {
+        "warnings": [],
+        "lambda": -0.22551485713403707
+      },
+      "mouse_path_length": {
+        "warnings": [],
+        "lambda": 0.44303082314161907
+      },
+      "mouse_velocity_mean": {
+        "warnings": [],
+        "lambda": 0.4242900452750107
+      },
+      "mouse_acceleration_mean": {
+        "warnings": [],
+        "lambda": 0.18610818163728235
+      },
+      "mouse_jerk_mean": {
+        "warnings": [],
+        "lambda": 0.6561420744389278
+      },
+      "mouse_angular_velocity_mean": {
+        "warnings": [],
+        "lambda": 0.9098746555463517
+      },
+      "mouse_angular_velocity_std": {
+        "warnings": [],
+        "lambda": -0.005509360542814343
+      },
+      "mouse_angular_velocity_min": {
+        "warnings": [],
+        "lambda": 1.6057059176535464
+      },
+      "mouse_curvature_mean": {
+        "warnings": [],
+        "lambda": -0.659840967174766
+      },
+      "mouse_curvature_std": {
+        "warnings": [],
+        "lambda": -0.28279632379131664
+      },
+      "mouse_curvature_min": {
+        "warnings": [],
+        "lambda": -390.2461818171371
+      },
+      "mouse_largest_deviation": {
+        "warnings": [],
+        "lambda": 0.4053241602486007
+      },
+      "keyboard_typing_rate": {
+        "warnings": [],
+        "lambda": -0.48895774240657996
+      },
+      "scaler": {
+        "elapsed_time": {
+          "mean": 2.1814300240228985,
+          "scale": 0.27198639451755385
+        },
+        "mouse_path_length": {
+          "mean": 45.90029864455756,
+          "scale": 24.990109967102384
+        },
+        "mouse_straightness": {
+          "mean": 0.2227478656355587,
+          "scale": 0.25474815790190086
+        },
+        "mouse_velocity_mean": {
+          "mean": 23.047297602958004,
+          "scale": 12.389395054033507
+        },
+        "mouse_acceleration_mean": {
+          "mean": 16.576055641964466,
+          "scale": 8.439530190009075
+        },
+        "mouse_jerk_mean": {
+          "mean": -20142.282692622935,
+          "scale": 282018.1799503795
+        },
+        "mouse_direction_changes": {
+          "mean": 8.069486404833837,
+          "scale": 5.730187675253038
+        },
+        "mouse_click_count": {
+          "mean": 2.5876132930513593,
+          "scale": 2.3288608359144014
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.3804808072734876,
+          "scale": 0.27016639112932767
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.05051643506124912,
+          "scale": 4.8723103730121045
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 1.847630165894376,
+          "scale": 0.9872660387641589
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -5.2645017311998865,
+          "scale": 5.168236172824931
+        },
+        "mouse_curvature_mean": {
+          "mean": 0.5656753576970169,
+          "scale": 0.41758137372040444
+        },
+        "mouse_curvature_std": {
+          "mean": 1.1471900772769263,
+          "scale": 0.8098461475623645
+        },
+        "mouse_curvature_min": {
+          "mean": 5.584559932912339e-05,
+          "scale": 0.0003387913939745792
+        },
+        "mouse_sum_of_angles": {
+          "mean": 20.070789558229546,
+          "scale": 13.447228833097128
+        },
+        "mouse_largest_deviation": {
+          "mean": 16.568972444281904,
+          "scale": 9.809834296494312
+        },
+        "mouse_sharp_angles": {
+          "mean": 26.583081570996978,
+          "scale": 16.62138044161456
+        },
+        "keyboard_typing_rate": {
+          "mean": 0.5802117834143615,
+          "scale": 0.44969581613386134
+        },
+        "keyboard_burst_count": {
+          "mean": 1.481363408304006,
+          "scale": 1.254558959599111
+        },
+        "keyboard_pause_count": {
+          "mean": 0.8855573628143144,
+          "scale": 0.8260667634545998
+        }
+      }
+    },
+    "parent_quantile": {
+      "elapsed_time": {
+        "warnings": []
+      },
+      "mouse_path_length": {
+        "warnings": []
+      },
+      "mouse_velocity_mean": {
+        "warnings": []
+      },
+      "mouse_acceleration_mean": {
+        "warnings": []
+      },
+      "mouse_jerk_mean": {
+        "warnings": []
+      },
+      "mouse_angular_velocity_mean": {
+        "warnings": []
+      },
+      "mouse_angular_velocity_std": {
+        "warnings": []
+      },
+      "mouse_angular_velocity_min": {
+        "warnings": []
+      },
+      "mouse_curvature_mean": {
+        "warnings": []
+      },
+      "mouse_curvature_std": {
+        "warnings": []
+      },
+      "mouse_curvature_min": {
+        "warnings": []
+      },
+      "mouse_largest_deviation": {
+        "warnings": []
+      },
+      "keyboard_typing_rate": {
+        "warnings": []
+      },
+      "scaler": {
+        "elapsed_time": {
+          "mean": -0.0033258239274183365,
+          "scale": 1.0330282020037431
+        },
+        "mouse_path_length": {
+          "mean": -0.44313796541036726,
+          "scale": 1.9628249498471961
+        },
+        "mouse_straightness": {
+          "mean": 0.2227478656355587,
+          "scale": 0.25474815790190086
+        },
+        "mouse_velocity_mean": {
+          "mean": -0.443104911685228,
+          "scale": 1.9627753166230433
+        },
+        "mouse_acceleration_mean": {
+          "mean": -0.4689337785177652,
+          "scale": 1.9946859761816793
+        },
+        "mouse_jerk_mean": {
+          "mean": -0.0022194284017658748,
+          "scale": 1.0165958874660999
+        },
+        "mouse_direction_changes": {
+          "mean": 8.069486404833837,
+          "scale": 5.730187675253038
+        },
+        "mouse_click_count": {
+          "mean": 2.5876132930513593,
+          "scale": 2.3288608359144014
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.3804808072734876,
+          "scale": 0.27016639112932767
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.0015935909437339354,
+          "scale": 1.0252016190689521
+        },
+        "mouse_angular_velocity_std": {
+          "mean": -0.5084930239397982,
+          "scale": 2.0575902146833287
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -0.013365679497080205,
+          "scale": 1.0165813716799836
+        },
+        "mouse_curvature_mean": {
+          "mean": -0.4866275679857984,
+          "scale": 2.0206691836386934
+        },
+        "mouse_curvature_std": {
+          "mean": -0.5236392004163178,
+          "scale": 2.0695662095436522
+        },
+        "mouse_curvature_min": {
+          "mean": -4.291094458491157,
+          "scale": 2.328033633290692
+        },
+        "mouse_sum_of_angles": {
+          "mean": 20.070789558229546,
+          "scale": 13.447228833097128
+        },
+        "mouse_largest_deviation": {
+          "mean": -0.4856388806765481,
+          "scale": 2.0220105326359037
+        },
+        "mouse_sharp_angles": {
+          "mean": 26.583081570996978,
+          "scale": 16.62138044161456
+        },
+        "keyboard_typing_rate": {
+          "mean": -1.2127033914218377,
+          "scale": 2.6819747573211514
+        },
+        "keyboard_burst_count": {
+          "mean": 1.481363408304006,
+          "scale": 1.254558959599111
+        },
+        "keyboard_pause_count": {
+          "mean": 0.8855573628143144,
+          "scale": 0.8260667634545998
+        }
+      }
+    },
+    "micro_base": {
+      "scaler": {
+        "elapsed_time": {
+          "mean": 4.320651560926485,
+          "scale": 5.266105524917859
+        },
+        "mouse_path_length": {
+          "mean": 246.9586053512197,
+          "scale": 293.02100758545333
+        },
+        "mouse_straightness": {
+          "mean": 0.48659509088460123,
+          "scale": 0.39424387953357803
+        },
+        "mouse_velocity_mean": {
+          "mean": 290.84761581743663,
+          "scale": 708.370570664538
+        },
+        "mouse_acceleration_mean": {
+          "mean": 11953.998585093257,
+          "scale": 615427.7008496348
+        },
+        "mouse_jerk_mean": {
+          "mean": 9414406.578996932,
+          "scale": 700932421.8603755
+        },
+        "mouse_direction_changes": {
+          "mean": 1.3120174555219872,
+          "scale": 1.4263242023263027
+        },
+        "mouse_click_count": {
+          "mean": 0.5119167505874455,
+          "scale": 0.7379619002006469
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.23091345817573772,
+          "scale": 0.2596234352021444
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.20374671915967046,
+          "scale": 10.359523534471727
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 6.023717692856404,
+          "scale": 25.919423053490213
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -9.023093316381347,
+          "scale": 43.82739451099709
+        },
+        "mouse_curvature_mean": {
+          "mean": 2.913335853670124,
+          "scale": 25.886968862640426
+        },
+        "mouse_curvature_std": {
+          "mean": 6.639246921223197,
+          "scale": 65.7966259544481
+        },
+        "mouse_curvature_min": {
+          "mean": 0.09181043925299538,
+          "scale": 2.8358139704586613
+        },
+        "mouse_sum_of_angles": {
+          "mean": 3.279600424271882,
+          "scale": 3.141520864965732
+        },
+        "mouse_largest_deviation": {
+          "mean": 38.34016773878613,
+          "scale": 71.4079998376795
+        },
+        "mouse_sharp_angles": {
+          "mean": 4.355320577374958,
+          "scale": 3.4877810577159423
+        },
+        "keyboard_typing_rate": {
+          "mean": 4.51217809255435,
+          "scale": 66.47498160722365
+        },
+        "keyboard_burst_count": {
+          "mean": 1.4115474991607921,
+          "scale": 2.1329149550433923
+        },
+        "keyboard_pause_count": {
+          "mean": 0.41137965760322254,
+          "scale": 0.8617714079651209
+        }
+      }
+    },
+    "micro_log": {
+      "scaler": {
+        "elapsed_time": {
+          "mean": 1.431023647446223,
+          "scale": 0.6193520875090907
+        },
+        "mouse_path_length": {
+          "mean": 3.693060278279567,
+          "scale": 2.7018328795936166
+        },
+        "mouse_straightness": {
+          "mean": 0.48659509088460123,
+          "scale": 0.39424387953357803
+        },
+        "mouse_velocity_mean": {
+          "mean": 3.736516940278155,
+          "scale": 2.7494292387086783
+        },
+        "mouse_acceleration_mean": {
+          "mean": 5.113205119686249,
+          "scale": 3.7943183458518495
+        },
+        "mouse_jerk_mean": {
+          "mean": 1.6587990060583886,
+          "scale": 6.579752292392659
+        },
+        "mouse_direction_changes": {
+          "mean": 1.3120174555219872,
+          "scale": 1.4263242023263027
+        },
+        "mouse_click_count": {
+          "mean": 0.5119167505874455,
+          "scale": 0.7379619002006469
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.23091345817573772,
+          "scale": 0.2596234352021444
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": 0.03626842005512946,
+          "scale": 1.1123169354915625
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 1.2286535468079578,
+          "scale": 1.0770558050138246
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -1.2948292436524234,
+          "scale": 1.315193802822225
+        },
+        "mouse_curvature_mean": {
+          "mean": 0.46272504709108464,
+          "scale": 0.818584368740552
+        },
+        "mouse_curvature_std": {
+          "mean": 0.6358567632198686,
+          "scale": 1.0435011552809736
+        },
+        "mouse_curvature_min": {
+          "mean": 0.010716861033252888,
+          "scale": 0.1560455933704382
+        },
+        "mouse_sum_of_angles": {
+          "mean": 3.279600424271882,
+          "scale": 3.141520864965732
+        },
+        "mouse_largest_deviation": {
+          "mean": 2.200492749567197,
+          "scale": 1.8973498954503374
+        },
+        "mouse_sharp_angles": {
+          "mean": 4.355320577374958,
+          "scale": 3.4877810577159423
+        },
+        "keyboard_typing_rate": {
+          "mean": 0.6762944517388626,
+          "scale": 0.8613118429781533
+        },
+        "keyboard_burst_count": {
+          "mean": 0.5672861612846007,
+          "scale": 0.744536113008191
+        },
+        "keyboard_pause_count": {
+          "mean": 0.22904669842999836,
+          "scale": 0.4289929273106443
+        }
+      }
+    },
+    "micro_yj": {
+      "elapsed_time": {
+        "warnings": [],
+        "lambda": -0.69136991764285
+      },
+      "mouse_path_length": {
+        "warnings": [],
+        "lambda": 0.15618466251839833
+      },
+      "mouse_velocity_mean": {
+        "warnings": [],
+        "lambda": 0.13771382162430137
+      },
+      "mouse_acceleration_mean": {
+        "warnings": [],
+        "lambda": 0.10332485257157227
+      },
+      "mouse_jerk_mean": {
+        "warnings": [],
+        "lambda": 0.6914821353714095
+      },
+      "mouse_angular_velocity_mean": {
+        "warnings": [],
+        "lambda": 0.9512574815684763
+      },
+      "mouse_angular_velocity_std": {
+        "warnings": [],
+        "lambda": -0.1634532123090911
+      },
+      "mouse_angular_velocity_min": {
+        "warnings": [],
+        "lambda": 1.533486460259549
+      },
+      "mouse_curvature_mean": {
+        "warnings": [],
+        "lambda": -1.6133776785460394
+      },
+      "mouse_curvature_std": {
+        "warnings": [],
+        "lambda": -1.160228772438923
+      },
+      "mouse_curvature_min": {
+        "warnings": [],
+        "lambda": -42.43693065205501
+      },
+      "mouse_largest_deviation": {
+        "warnings": [],
+        "lambda": -0.051174151899884106
+      },
+      "keyboard_typing_rate": {
+        "warnings": [],
+        "lambda": -0.764712367810547
+      },
+      "scaler": {
+        "elapsed_time": {
+          "mean": 0.8643063507278355,
+          "scale": 0.2071563423246992
+        },
+        "mouse_path_length": {
+          "mean": 5.969711277129718,
+          "scale": 4.593536564244403
+        },
+        "mouse_straightness": {
+          "mean": 0.48659509088460123,
+          "scale": 0.39424387953357803
+        },
+        "mouse_velocity_mean": {
+          "mean": 5.726421285975467,
+          "scale": 4.421356594476334
+        },
+        "mouse_acceleration_mean": {
+          "mean": 7.948933776130932,
+          "scale": 6.15713496693587
+        },
+        "mouse_jerk_mean": {
+          "mean": -52381.45368100819,
+          "scale": 795316.8305002068
+        },
+        "mouse_direction_changes": {
+          "mean": 1.3120174555219872,
+          "scale": 1.4263242023263027
+        },
+        "mouse_click_count": {
+          "mean": 0.5119167505874455,
+          "scale": 0.7379619002006469
+        },
+        "mouse_idle_time_ratio": {
+          "mean": 0.23091345817573772,
+          "scale": 0.2596234352021444
+        },
+        "mouse_angular_velocity_mean": {
+          "mean": -0.012918666960417411,
+          "scale": 9.937855032668777
+        },
+        "mouse_angular_velocity_std": {
+          "mean": 1.0368664216864443,
+          "scale": 0.8666173219048994
+        },
+        "mouse_angular_velocity_min": {
+          "mean": -2.5178831967977455,
+          "scale": 4.596284730606802
+        },
+        "mouse_curvature_mean": {
+          "mean": 0.18660341466349567,
+          "scale": 0.2186407363458607
+        },
+        "mouse_curvature_std": {
+          "mean": 0.266029145809023,
+          "scale": 0.3088535448582167
+        },
+        "mouse_curvature_min": {
+          "mean": 0.0007738638664666871,
+          "scale": 0.0034375958326853242
+        },
+        "mouse_sum_of_angles": {
+          "mean": 3.279600424271882,
+          "scale": 3.141520864965732
+        },
+        "mouse_largest_deviation": {
+          "mean": 1.9990616148277134,
+          "scale": 1.689935180702923
+        },
+        "mouse_sharp_angles": {
+          "mean": 4.355320577374958,
+          "scale": 3.4877810577159423
+        },
+        "keyboard_typing_rate": {
+          "mean": 0.38798942488366583,
+          "scale": 0.4318829437484315
+        },
+        "keyboard_burst_count": {
+          "mean": 0.5672861612846007,
+          "scale": 0.744536113008191
+        },
+        "keyboard_pause_count": {
+          "mean": 0.22904669842999836,
+          "scale": 0.4289929273106443
+        }
+      }
+    }
+  },
+  "specification_status": "frozen_phase_01"
+}
