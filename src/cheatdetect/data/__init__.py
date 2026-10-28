@@ -24,15 +24,15 @@ Public API:
 
 from .loader import load_single_session, load_sessions
 from .cleaning import clean_session_data, clean_features
-from .pipeline import process_session, process_sessions
+from .processing_pipeline import process_session, process_sessions
 from .features import (
     extract_features_from_session,
     extract_features_from_chunk,
     extract_mouse_features,
     extract_keyboard_features,
     extract_action_features,
+    merge_window_switch_events
 )
-from .build import merge_window_switch_events
 from .transform import Log1pSkewed, find_skewed_features
 from .augment import add_coordinate_noise, augment_session_data
 from .sequences import (
