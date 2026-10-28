@@ -8,7 +8,7 @@ orchestration that combines them into a single feature dict.
 from .extract import extract_features_from_session, extract_features_from_chunk
 from .mouse import extract_mouse_features
 from .keyboard import extract_keyboard_features
-from .actions import extract_action_features
+from .actions import extract_action_features, merge_window_switch_events
 
 __all__ = [
     "extract_features_from_session",
@@ -16,4 +16,5 @@ __all__ = [
     "extract_mouse_features",
     "extract_keyboard_features",
     "extract_action_features",
+    "merge_window_switch_events"
 ]

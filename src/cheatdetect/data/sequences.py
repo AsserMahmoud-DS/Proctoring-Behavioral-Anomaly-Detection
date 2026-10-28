@@ -21,9 +21,8 @@ import numpy as np
 import pandas as pd
 
 from .augment import add_coordinate_noise
-from .build import merge_window_switch_events
 from .cleaning import clean_features
-from .features.extract import extract_features_from_chunk
+from .features import extract_features_from_chunk, merge_window_switch_events
 
 
 def sequence_length(chunk_size: int, sub_chunk: int, sub_step: int) -> int:

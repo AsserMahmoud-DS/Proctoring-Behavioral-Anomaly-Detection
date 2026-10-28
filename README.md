@@ -25,8 +25,7 @@ CheatDetect/
 │   ├── data/                         # Raw events → model-ready array
 │   │   ├── loader.py                 #   Load CSVs (single or directory)
 │   │   ├── cleaning.py               #   Raw session + feature-matrix cleaning
-│   │   ├── pipeline.py               #   load → clean → extract orchestration
-│   │   ├── build.py                  #   Column merging (window_switch_events)
+│   │   ├── processing_pipeline.py    #   load → clean → extract orchestration
 │   │   ├── transform.py              #   Log1pSkewed + find_skewed_features
 │   │   ├── selection.py              #   Zero-var + correlation feature selection
 │   │   ├── augment.py                #   Gaussian-noise augmentation
@@ -34,7 +33,7 @@ CheatDetect/
 │   │       ├── extract.py            #   Chunking & feature orchestration
 │   │       ├── mouse.py              #   Mouse kinematic features (24)
 │   │       ├── keyboard.py           #   Keyboard typing features (3)
-│   │       └── actions.py            #   Action event features (6)
+│   │       └── actions.py            #   Action event features + window-switch merging
 │   ├── models/                       # Anomaly detectors (shared ABC)
 │   │   ├── base.py                   #   AnomalyDetector interface
 │   │   ├── isolation_forest.py       #   IF + grid_search
