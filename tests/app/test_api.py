@@ -5,7 +5,7 @@ from cheatdetect.app.app import app
 from cheatdetect.app.dependencies import get_predictor
 from cheatdetect.app.schemas import InferenceConfig
 from cheatdetect.app.service import PredictionService
-from test_service import FakeDetector, make_events
+from .helpers import FakeDetector
 
 
 def fake_get_predictor():
