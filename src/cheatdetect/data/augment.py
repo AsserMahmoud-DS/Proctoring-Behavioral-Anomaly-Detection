@@ -51,6 +51,9 @@ def add_coordinate_noise(
     mouse_mask = noisy["is_mouse_event"].values
 
     if mouse_mask.any():
+        noisy[["X Coordinate", "Y Coordinate"]] = noisy[
+            ["X Coordinate", "Y Coordinate"]
+        ].astype(float)
         screen_w, screen_h = screen_bounds
         n = int(mouse_mask.sum())
 
