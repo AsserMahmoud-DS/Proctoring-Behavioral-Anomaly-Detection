@@ -1,15 +1,9 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from cheatdetect.data import add_coordinate_noise, augment_session_data, clean_session_data
 
 
-@pytest.mark.xfail(
-    raises=TypeError,
-    strict=True,
-    reason="float noise cannot be assigned to integer coordinate columns",
-)
 def test_noise_accepts_integer_coordinates():
     raw = pd.DataFrame(
         {
