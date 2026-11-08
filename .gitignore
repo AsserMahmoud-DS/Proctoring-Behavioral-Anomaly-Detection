@@ -1,0 +1,44 @@
+# Python bytecode and packaging outputs
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+
+# Test, lint, and coverage outputs
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+/htmlcov/
+/coverage.xml
+.ipynb_checkpoints/
+
+# Local environments and environment settings
+/.venv/
+/cheatdetect/
+.env
+.env.*
+!.env.example
+
+# Private data and generated preprocessing outputs
+/dataset/raw/
+/dataset/processed/
+
+# Local research materials; Experiment 1 is preserved on its own branch
+study/
+/plans/
+/research/
+/notebooks/old/
+/reports/research/
+
+# Local editor settings and scratch files
+/.vscode/
+/AGENTS.md
+/research_agent.md
+/issues.txt
+/reports/report.md
+
+
+FOLLOW_UPS.md
