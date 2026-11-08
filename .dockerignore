@@ -9,7 +9,11 @@ tests/
 reports/
 dataset/*
 plans/
-best_models/
+
+best_models/*
+!best_models/best_model.joblib
+!best_models/model_config.json
+
 notebooks/
 
 research_agent.md
