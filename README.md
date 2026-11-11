@@ -1,167 +1,98 @@
-# CheatDetect: Behavioral Anomaly Detection
+# CheatDetect
 
-Detects cheating behavior through mouse and keyboard actions collected from students during live exam sessions.
+CheatDetect is a FastAPI service that scores mouse, keyboard, and browser interaction events for behavioral anomalies during online exams. The deployed **Isolation Forest** scores overlapping windows of 50 events, advancing 25 events at a time. An anomaly flag can help an instructor decide which activity to review.
 
-## Overview
+[Live API and Swagger UI](https://proctoring-anomaly-detection-production-0036.up.railway.app/docs) · [Railway health endpoint](https://proctoring-anomaly-detection-production-0036.up.railway.app/health)
 
-Extracts kinematic and event-based features from raw session data, then classifies each time window as `anomalous` or `normal` using classical unsupervised ML (Isolation Forest, One-Class SVM, weighted ensemble). Built for small datasets (~20 sessions).
+## Model evaluation
 
-## Project Structure
+Experiment 1 compared four anomaly detectors on held-out session data. AP is average precision, and FPR is the false positive rate. The experiment snapshot includes the split, model recipes, and complete evaluation.
 
-```
-CheatDetect/
-├── dataset/
-│   ├── raw/                          # Raw CSV session files
-│   │   ├── mixed/                    # Sessions with cheating segments
-│   │   └── pure normal/              # Clean sessions
-│   └── processed/                    # Feature-engineered cache (.pkl)
-├── best_models/                      # Serialized model + inference config
-├── notebooks/                        # EDA + train/eval (jupytext .py ↔ .ipynb)
-├── reports/                          # Generated plots and metrics
-├── plans/                            # Architecture and design docs
-├── src/cheatdetect/
-│   ├── config.py                     # Static paths + ExperimentConfig
-│   ├── utils.py                      # _find_project_root
-│   ├── data/                         # Raw events → model-ready array
-│   │   ├── loader.py                 #   Load CSVs (single or directory)
-│   │   ├── cleaning.py               #   Raw session + feature-matrix cleaning
-│   │   ├── processing_pipeline.py    #   load → clean → extract orchestration
-│   │   ├── transform.py              #   Log1pSkewed + find_skewed_features
-│   │   ├── selection.py              #   Zero-var + correlation feature selection
-│   │   ├── augment.py                #   Gaussian-noise augmentation
-│   │   └── features/
-│   │       ├── extract.py            #   Chunking & feature orchestration
-│   │       ├── mouse.py              #   Mouse kinematic features (24)
-│   │       ├── keyboard.py           #   Keyboard typing features (3)
-│   │       └── actions.py            #   Action event features + window-switch merging
-│   ├── models/                       # Anomaly detectors (shared ABC)
-│   │   ├── base.py                   #   AnomalyDetector interface
-│   │   ├── isolation_forest.py       #   IF + grid_search
-│   │   ├── ocsvm.py                  #   OCSVM + grid_search
-│   │   ├── ensemble.py               #   Weighted IF+OCSVM ensemble
-│   │   └── threshold.py              #   tune_threshold
-│   ├── eval/                         # Evaluation
-│   │   ├── metrics.py                #   evaluate_model, compare_models
-│   │   └── plots.py                  #   PR/ROC/confusion/score-distributions
-│   ├── pipeline/
-│   │   └── train.py                  #   prepare_data + train_pipeline orchestration
-│   └── app/                          # FastAPI inference API
-│       ├── app.py                    #   FastAPI app, lifespan, routes
-│       ├── schemas.py                #   Pydantic request/response models
-│       ├── service.py                #   PredictionService (stateful inference)
-│       ├── buffer.py                 #   WindowBuffer (per-session sliding window)
-│       └── dependencies.py           #   Model loading + DI
-└── tests/
-    ├── test_schema.py                #   Pydantic model validation
-    ├── test_buffer.py                #   Sliding window logic
-    ├── test_service.py               #   Service orchestration
-    └── test_api.py                   #   HTTP layer (TestClient)
+| Model | ROC-AUC | AP | Precision | Recall | F1 | FPR |
+|---|---:|---:|---:|---:|---:|---:|
+| Isolation Forest | 0.7138 | 0.7500 | 0.7391 | **0.6634** | 0.6992 | 0.2981 |
+| One-Class SVM | **0.7323** | 0.7461 | **0.7798** | 0.6390 | 0.7024 | **0.2298** |
+| LSTM autoencoder | 0.6314 | 0.6607 | 0.7099 | 0.4537 | 0.5536 | 0.2360 |
+| Weighted ensemble | 0.7191 | **0.7587** | 0.7670 | 0.6585 | **0.7087** | 0.2547 |
+
+The deployed Isolation Forest is loaded from `best_models/best_model.joblib`. Its saved configuration separately records a test PR-AUC of **0.7578** for that artifact.
+
+[Experiment 1 report](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/e97158922154062bf856b1f579550493690028b4/reports/experiment1/README.md) · [Experiment metrics CSV](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/e97158922154062bf856b1f579550493690028b4/reports/experiment1/tables/final_metrics.csv) · [Deployed model configuration](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/faeb1bf8b75bba123c51cbba85f961473d214784/best_models/model_config.json)
+
+## Railway load test
+
+With **30 concurrent simulated exam sessions**, the API sustained **10.20 scoring requests/sec** for approximately three minutes. Mean end-to-end scoring latency was **430 ms**, p95 was **870 ms**, and the saved results recorded **zero failures** across **1,826 scoring requests**.
+
+| Active students | Scoring requests | Successful scores/sec | Mean latency | p95 latency | Failures |
+|---|---:|---:|---:|---:|---:|
+| 10 | 645 | 3.66 | 229 ms | 290 ms | 0 |
+| 30 | 1,826 | 10.20 | 430 ms | 870 ms | 0 |
+
+Locust used staggered starts at two students per second. Each session sent batches of 25 synthetic mouse events and waited 2.5 seconds after each response. Synthetic timestamps advanced by 0.2 seconds per event, so each scoring window represented roughly 10 seconds of simulated behavior. The table uses the scoring request row and measures time from sending the HTTP request to receiving the prediction. The 30-student run exceeded the provisional p95 target of 500 ms.
+
+[10-student results](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/faeb1bf8b75bba123c51cbba85f961473d214784/tests/locust/results/railway-10_stats.csv) · [30-student results](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/faeb1bf8b75bba123c51cbba85f961473d214784/tests/locust/results/railway-30_stats.csv) · [Locust workload](https://github.com/AsserMahmoud-DS/Proctoring-Behavioral-Anomaly-Detection/blob/faeb1bf8b75bba123c51cbba85f961473d214784/tests/locust/locustfile.py)
+
+## Repository structure
+
+```text
+src/cheatdetect/
+├── app/        FastAPI routes, request schemas, session buffers, inference
+├── data/       Event cleaning, feature extraction, and preprocessing
+├── models/     Anomaly detectors and threshold selection
+├── pipeline/   Training and experiment orchestration
+└── eval/       Evaluation metrics and plots
+best_models/   Saved detector and inference configuration
+notebooks/     Exploratory analysis and training evaluation
+tests/         Unit and integration tests
 ```
 
-## Feature Set (34 features per chunk + label)
+`main` contains the application and research entry points. `deploy` contains the standalone Docker build, smoke test, and Locust suite. The `experiment1` branch preserves the study and its reproduction guide.
 
-| Category | Features | Count |
-|---|---|---|
-| Mouse kinematics | velocity (mean/std/max), acceleration (mean/std/max), jerk (mean/std) | 8 |
-| Mouse spatial | path length, straightness, direction changes, angular velocity (mean/std/min/max), curvature (mean/std/min/max), direction class, sum of angles, largest deviation, sharp angles | 15 |
-| Mouse other | click count, idle time ratio | 2 |
-| Keyboard | typing rate, burst count, pause count | 3 |
-| Actions | elapsed time, copy/paste/blur/focus/tab-switch events | 6 |
-| Label | is_cheating | 1 |
+## Quick start
 
-Events are chunked by count (configurable, default: 50 events per window, sliding by 25) and labeled by the cheating-event ratio within the window.
-
-## Quick Start
+From the repository root, use Python 3.12 and [uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Setup
-uv venv cheatdetect
-uv sync
-
-# Run the full training pipeline
-uv run python -c "
-from cheatdetect.config import ExperimentConfig
-from cheatdetect.pipeline.train import train_pipeline
-
-results = train_pipeline(ExperimentConfig())
-print(results['metrics_df'])
-"
-
-# Run the API
-uv run uvicorn cheatdetect.app.app:app --reload
-
-# Run tests
-uv run pytest
+uv sync --locked --no-dev
+uv run --no-sync uvicorn cheatdetect.app.app:app --reload
 ```
 
-## API
+Open [local Swagger UI](http://127.0.0.1:8000/docs) or check `GET /health`. Run the project tests with `uv run pytest`.
 
-The inference API exposes two endpoints:
+## Prediction API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Returns `{"status": "ok"}` |
-| `POST` | `/predict` | Accepts a batch of events, returns verdict + per-chunk scores |
-
-### `POST /predict` — Request
+Send a JSON batch to `POST /predict`. Reuse the same `session_id` and keep event timestamps increasing across batches.
 
 ```json
 {
-  "session_id": "student_123",
+  "session_id": "demo-student",
   "events": [
-    {"time": 0.0, "event_type": "mousemove", "x": 100.0, "y": 200.0},
-    {"time": 0.1, "event_type": "click", "x": 100.0, "y": 200.0, "action": "copy"}
+    {"time": 0.0, "event_type": "mousemove", "x": 100, "y": 200}
   ]
 }
 ```
 
-### `POST /predict` — Response
+For a fresh session, a first batch of 25 events returns an empty `chunks_pred`. A second batch of 25 events produces one scored window. Each additional 25 events produces another window. Each prediction includes a score and an `isanomalous` flag. Use `chunks_pred` to tell whether any window has been scored.
 
-```json
-{
-  "session_id": "student_123",
-  "verdict": "anomalous",
-  "chunks_pred": [
-    {"chunk_index": 0, "score": 0.85, "isanomalous": true}
-  ]
-}
-```
+## Deployment and benchmarking
 
-Events are buffered per `session_id` using a sliding window (`chunk_size` events, `step_size` overlap). The API returns a verdict once enough events have accumulated to form a window.
-
-## Notebooks
-
-Notebooks are stored as paired `.py` scripts (Jupytext, `py:percent` format). Edit the `.py`, then sync:
+Check out `deploy` for the Docker image that includes the trained model and configuration.
 
 ```bash
-jupytext --sync notebooks/eda.py
-jupytext --sync notebooks/train_evaluate.py
+git switch deploy
+docker build -t cheatdetect:deploy .
+docker run --rm -p 8000:8000 cheatdetect:deploy
 ```
 
-## Testing
+In a second terminal, run the smoke test against the container. The script also accepts the Railway base URL.
 
 ```bash
-# Run all tests
-uv run pytest
-
-# Run with verbose output
-uv run pytest -v
-
-# Run a specific test file
-uv run pytest tests/test_service.py -v
+python3 scripts/smoke_test.py http://127.0.0.1:8000
 ```
 
-Tests are organized bottom-up by layer:
+On `deploy`, use the following to reproduce the 30-user workload against your own running instance. Set `API_URL` to its base URL. For the 10-user run, use `-u 10` and `-t 3m5s`.
 
-| File | Layer | Tests |
-|------|-------|-------|
-| `test_schema.py` | Data contracts | 12 |
-| `test_buffer.py` | Windowing logic | 4 |
-| `test_service.py` | Inference orchestration | 5 |
-| `test_api.py` | HTTP transport | 4 |
-
-## Tech Stack
-
-- Python 3.12, uv, FastAPI, Pydantic v2, scikit-learn, pandas, numpy, joblib
-- Jupytext for notebook sync (`.py` ↔ `.ipynb`)
-- pytest for testing
+```bash
+uv run locust -f tests/locust/locustfile.py --host "$API_URL" \
+  --headless -u 30 -r 2 -t 3m15s --reset-stats --stop-timeout 10
+```
