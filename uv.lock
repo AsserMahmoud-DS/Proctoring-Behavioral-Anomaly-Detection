@@ -423,7 +423,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "ipykernel" },
     { name = "joblib" },
-    { name = "locust" },
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "scikit-learn" },
@@ -435,6 +434,7 @@ dependencies = [
 dev = [
     { name = "httpx" },
     { name = "jupytext" },
+    { name = "locust" },
     { name = "nbconvert" },
     { name = "pytest" },
     { name = "torch", version = "2.14.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
@@ -446,7 +446,6 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "joblib", specifier = ">=1.5.3" },
-    { name = "locust", specifier = ">=2.47.0" },
     { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "pandas", specifier = ">=3.0.3" },
     { name = "scikit-learn", specifier = ">=1.9.0" },
@@ -458,6 +457,7 @@ requires-dist = [
 dev = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jupytext", specifier = ">=1.16" },
+    { name = "locust", specifier = ">=2.47.0" },
     { name = "nbconvert", specifier = ">=7.16" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "torch", specifier = ">=2.2", index = "https://download.pytorch.org/whl/cpu" },
