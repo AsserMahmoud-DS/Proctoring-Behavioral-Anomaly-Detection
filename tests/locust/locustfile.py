@@ -16,7 +16,7 @@ def make_events(start, count = 25):
 
 
 class StudentUser(HttpUser):
-    wait_time = constant(5)
+    wait_time = constant(2.5)
 
     @task
     def send_batch(self):
