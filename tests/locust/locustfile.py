@@ -17,13 +17,14 @@ def make_events(start, count = 25):
 
 class StudentUser(HttpUser):
     wait_time = constant(5)
-    
+
     @task
     def send_batch(self):
 
         first_batch = self.next_event == 0
         expected_windows = 0 if first_batch else 1
-    
+        request_name = "predict: buffer" if first_batch else "predict: score"
+
         request = PredictionRequest(
             session_id = self.session_id,
             events = make_events(self.next_event, 25)
@@ -32,6 +33,7 @@ class StudentUser(HttpUser):
 
         with self.client.post(
             "/predict",
+            name = request_name,
             json = request.model_dump(mode = "json"),
             timeout = 10,
             catch_response=True
