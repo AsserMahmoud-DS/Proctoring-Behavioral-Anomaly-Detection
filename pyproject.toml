@@ -31,6 +31,7 @@ dev = [
     # provides the executor for `jupytext --execute`.
     "jupytext>=1.16",
     "nbconvert>=7.16",
+    "locust>=2.47.0",
     # Research-only dependency (LSTM autoencoder). Kept out of the API image
     # via the Dockerfile's `uv sync --no-dev`. CPU wheel to avoid CUDA bloat.
     "torch>=2.2",
